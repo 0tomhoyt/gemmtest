@@ -10,20 +10,20 @@
 /* Get transpose name string */
 inline const char* trans_name(enum CBLAS_TRANSPOSE trans) {
     switch (trans) {
-        case CblasNoTrans: return "NoTrans";
-        case CblasTrans: return "Trans";
-        case CblasConjTrans: return "ConjTrans";
-        case CblasConjNoTrans: return "ConjNoTrans";
-        default: return "Unknown";
+        case CblasNoTrans: return "N";
+        case CblasTrans: return "T";
+        case CblasConjTrans: return "T";
+        case CblasConjNoTrans: return "N";
+        default: return "?";
     }
 }
 
 /* Get order name string */
 inline const char* order_name(enum CBLAS_ORDER order) {
     switch (order) {
-        case CblasRowMajor: return "RowMajor";
-        case CblasColMajor: return "ColMajor";
-        default: return "Unknown";
+        case CblasRowMajor: return "R";
+        case CblasColMajor: return "C";
+        default: return "?";
     }
 }
 
