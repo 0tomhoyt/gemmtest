@@ -15,19 +15,16 @@
 
 /* 运行单阶段测试 */
 static int run_test_stage(int num_threads, int blas_threads, int total_iterations, unsigned int base_seed) {
-    /* Calculate iterations per thread (last thread handles remainder) */
-    int base_iterations = total_iterations / num_threads;
-    int remainder = total_iterations % num_threads;
+    /* Calculate iterations per thread (discard remainder) */
+    int iterations_per_worker = total_iterations / num_threads;
+    int actual_iterations = iterations_per_worker * num_threads;
 
     std::cout << "  Workers: " << num_threads << "\n";
     std::cout << "  BLAS threads per worker: " << blas_threads << "\n";
     std::cout << "  Total threads: " << (num_threads * blas_threads) << "\n";
-    std::cout << "  Total iterations: " << total_iterations << "\n";
-    std::cout << "  Iterations per worker: " << base_iterations;
-    if (remainder > 0) {
-        std::cout << " (last worker: " << (base_iterations + remainder) << ")";
-    }
-    std::cout << "\n\n";
+    std::cout << "  Requested iterations: " << total_iterations << "\n";
+    std::cout << "  Actual iterations: " << actual_iterations << "\n";
+    std::cout << "  Iterations per worker: " << iterations_per_worker << "\n\n";
 
     /* Initialize thread data */
     std::vector<ThreadArg> targs(num_threads);
@@ -36,8 +33,7 @@ static int run_test_stage(int num_threads, int blas_threads, int total_iteration
     /* Create threads and allocate buffers */
     for (int i = 0; i < num_threads; i++) {
         targs[i].thread_id = i;
-        /* Last thread handles remainder iterations */
-        targs[i].iterations = base_iterations + (i == num_threads - 1 ? remainder : 0);
+        targs[i].iterations = iterations_per_worker;
         targs[i].rand_seed = base_seed + i * 7919;  /* Use prime number for better distribution */
         targs[i].blas_threads = blas_threads;  /* Fixed BLAS thread count for this stage */
 
