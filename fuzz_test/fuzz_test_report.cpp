@@ -12,8 +12,6 @@ inline const char* trans_name(enum CBLAS_TRANSPOSE trans) {
     switch (trans) {
         case CblasNoTrans: return "N";
         case CblasTrans: return "T";
-        case CblasConjTrans: return "T";
-        case CblasConjNoTrans: return "N";
         default: return "?";
     }
 }

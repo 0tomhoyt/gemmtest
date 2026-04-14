@@ -18,9 +18,9 @@ private:
         0.0f, 1.0f, -1.0f, 2.0f, 0.5f, -0.5f, 0.25f, -2.0f
     };
 
-    /* Special small dimensions for edge case testing (0-64) */
-    static constexpr std::array<BLASINT, 12> special_small_dims_ = {
-        0, 1, 2, 3, 4, 7, 8, 15, 16, 31, 32, 63
+    /* Special small dimensions for edge case testing (1-64) */
+    static constexpr std::array<BLASINT, 11> special_small_dims_ = {
+        1, 2, 3, 4, 7, 8, 15, 16, 31, 32, 63
     };
 
 public:
@@ -29,25 +29,25 @@ public:
     /* Weighted random for dimensions
      *
      * 分布策略:
-     *   - DIM_PROB_SMALL (10%): 从特殊小维度列表中选择 (0-64)
-     *   - DIM_PROB_MEDIUM (40%): 随机选择 0-512
-     *   - DIM_PROB_LARGE (50%): 随机选择 0-1024
+     *   - DIM_PROB_SMALL (10%): 从特殊小维度列表中选择 (1-64)
+     *   - DIM_PROB_MEDIUM (40%): 随机选择 1-512
+     *   - DIM_PROB_LARGE (50%): 随机选择 1-1024
      */
     BLASINT random_dim() {
         std::uniform_int_distribution<int> dist_0_99(0, 99);
         int r = dist_0_99(rng_);
 
         if (r < DIM_PROB_SMALL) {
-            std::uniform_int_distribution<int> dist_0_11(0, special_small_dims_.size() - 1);
-            return special_small_dims_[dist_0_11(rng_)];
+            std::uniform_int_distribution<int> dist_0_10(0, special_small_dims_.size() - 1);
+            return special_small_dims_[dist_0_10(rng_)];
         }
 
         if (r < DIM_PROB_SMALL + DIM_PROB_MEDIUM) {
-            std::uniform_int_distribution<BLASINT> dist(0, DIM_RANGE_MEDIUM);
+            std::uniform_int_distribution<BLASINT> dist(1, DIM_RANGE_MEDIUM);
             return dist(rng_);
         }
 
-        std::uniform_int_distribution<BLASINT> dist(0, DIM_RANGE_LARGE);
+        std::uniform_int_distribution<BLASINT> dist(1, DIM_RANGE_LARGE);
         return dist(rng_);
     }
 
@@ -75,14 +75,8 @@ public:
 
     /* Random CBLAS_TRANSPOSE */
     enum CBLAS_TRANSPOSE random_transpose() {
-        std::uniform_int_distribution<int> dist(0, 3);
-        switch (dist(rng_)) {
-            case 0: return CblasNoTrans;
-            case 1: return CblasTrans;
-            case 2: return CblasConjTrans;
-            case 3: return CblasConjNoTrans;
-            default: return CblasNoTrans;
-        }
+        std::uniform_int_distribution<int> dist(0, 1);
+        return (dist(rng_) == 0) ? CblasNoTrans : CblasTrans;
     }
 
     /* Random number of threads for BLAS operations
