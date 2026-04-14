@@ -29,14 +29,14 @@ constexpr int BUFFER_ALIGNMENT = 64;
  * ============================================================ */
 
 /* 最大使用的CPU核数 (不设置则运行时自动检测) */
-// #define MAX_CORES 8
+// #define MAX_CORES 100
 
 /* 要测试的BLAS线程模式列表 (线程计数数组)
  * 每个模式将作为独立的测试阶段运行，其中：
  *   num_workers = MAX_CORES / blas_threads
  */
 #ifndef BLAS_THREADS_MODES
-#define BLAS_THREADS_MODES {1}
+#define BLAS_THREADS_MODES {1, 8}
 #endif
 
 #endif /* FUZZ_TEST_CONFIG_H */
