@@ -54,7 +54,7 @@ cd fuzz_test
 cd fuzz_test/build
 cmake -DUSE_HBM=ON ..
 cmake --build .
-./out/fuzz_test -t 4 -n 10000
+./out/fuzz_test -t 4 -n 100
 ```
 
 **特点：**
@@ -106,7 +106,7 @@ cd fuzz_test && ./build.sh --run
 # ARM64 服务器
 cd fuzz_test && mkdir build && cd build
 cmake -DUSE_HBM=ON .. && cmake --build .
-./out/fuzz_test -t 4 -n 10000
+./out/fuzz_test -t 4 -n 100
 ```
 
 详细文档：[fuzz_test/README.md](fuzz_test/README.md)

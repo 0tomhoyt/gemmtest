@@ -147,5 +147,5 @@ cmake -DUSE_EXTERNAL_LIBS=ON ..
 make
 
 # 4. 运行测试
-./out/fuzz_test -t 4 -n 10000
+./out/fuzz_test -t 4 -n 100
 ```

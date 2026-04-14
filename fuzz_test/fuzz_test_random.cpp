@@ -10,19 +10,6 @@
 
 /* Random parameter generator class */
 class RandomGenerator {
-private:
-    std::mt19937 rng_;
-
-    /* Special values for alpha/beta with higher probability */
-    static constexpr std::array<float, 8> special_values_ = {
-        0.0f, 1.0f, -1.0f, 2.0f, 0.5f, -0.5f, 0.25f, -2.0f
-    };
-
-    /* Special small dimensions for edge case testing (1-64) */
-    static constexpr std::array<BLASINT, 11> special_small_dims_ = {
-        1, 2, 3, 4, 7, 8, 15, 16, 31, 32, 63
-    };
-
 public:
     explicit RandomGenerator(unsigned int seed) : rng_(seed) {}
 
@@ -110,6 +97,19 @@ public:
         std::uniform_real_distribution<float> dist(min, max);
         return dist(rng_);
     }
+
+private:
+    std::mt19937 rng_;
+
+    /* Special values for alpha/beta with higher probability */
+    static constexpr std::array<float, 8> special_values_ = {
+        0.0f, 1.0f, -1.0f, 2.0f, 0.5f, -0.5f, 0.25f, -2.0f
+    };
+
+    /* Special small dimensions for edge case testing (1-64) */
+    static constexpr std::array<BLASINT, 11> special_small_dims_ = {
+        1, 2, 3, 4, 7, 8, 15, 16, 31, 32, 63
+    };
 };
 
 #endif /* FUZZ_TEST_RANDOM_H */

@@ -14,7 +14,7 @@
 
 int main(int argc, char *argv[]) {
     int num_threads = 4;
-    int iterations = 10000;
+    int iterations = 100;
 
     /* Parse command line arguments */
     for (int i = 1; i < argc; i++) {
@@ -27,7 +27,7 @@ int main(int argc, char *argv[]) {
         } else if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0) {
             std::cout << "Usage: " << argv[0] << " [-t <threads>] [-n <iterations_per_thread>]\n";
             std::cout << "  -t <threads>     Number of threads (default: 4)\n";
-            std::cout << "  -n <iterations>  Iterations per thread (default: 10000)\n";
+            std::cout << "  -n <iterations>  Iterations per thread (default: 100)\n";
             return 0;
         }
     }

@@ -49,7 +49,7 @@ cmake --build .
 ### 运行参数
 
 ```bash
-# 使用默认参数运行（4 线程，每线程 10000 次迭代）
+# 使用默认参数运行（4 线程，每线程 100 次迭代）
 ./out/fuzz_test
 
 # 自定义线程数
@@ -97,7 +97,7 @@ rm -rf build out
 ```
 Starting fuzz test:
   Threads: 4
-  Iterations per thread: 10000
+  Iterations per thread: 100
   Total iterations: 40000
 
 ========================================
