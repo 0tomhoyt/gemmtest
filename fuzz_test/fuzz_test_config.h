@@ -29,7 +29,11 @@ constexpr int BUFFER_ALIGNMENT = 64;
  * ============================================================ */
 
 /* 最大使用的CPU核数 (不设置则运行时自动检测) */
-// #define MAX_CORES 100
+#ifdef USE_HBM
+#define MAX_CORES 100  /* HBM 模式下默认使用 100 核 */
+#else
+// #define MAX_CORES 100  /* 非 HBM 模式，取消注释以手动指定 */
+#endif
 
 /* 要测试的BLAS线程模式列表 (线程计数数组)
  * 每个模式将作为独立的测试阶段运行，其中：
