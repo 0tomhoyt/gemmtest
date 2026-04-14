@@ -4,102 +4,51 @@
 
 这是一个多线程随机测试工具，用于全面测试 `cblas_sgemm` 函数实现的正确性。由于系统中没有参考 BLAS 库，本项目通过独立编写的参考实现进行正确性比对。
 
-## 如何使用
+## 运行方式
 
-### 方式 1: 使用便捷构建脚本（推荐）
-
-```bash
-cd fuzz_test
-
-# 仅构建（普通模式）
-./build.sh
-
-# 清理构建并运行
-./build.sh --clean --run
-
-# 传递参数给测试程序
-./build.sh --run --thread 4 --iteration 100
-
-# Debug 模式构建
-./build.sh --debug
-
-# 查看帮助
-./build.sh --help
-```
-
-### 方式 2: 使用 CMake
+### 多阶段自动测试（默认）
 
 ```bash
-cd fuzz_test
-
-# 普通模式配置和构建
-mkdir build && cd build
-cmake ..
-cmake --build .
-
-# HBM 模式编译（需要 HBM 环境）
-mkdir build && cd build
-cmake -DUSE_HBM=ON ..
-cmake --build .
-
-# 运行
-./out/fuzz_test
-```
-
-### 运行参数
-
-```bash
-# 使用默认参数运行（多阶段自动测试）
-./out/fuzz_test
+# 使用默认参数运行
+fuzz_test
 # 将自动检测 CPU 核心数，并运行多个测试阶段
 
 # 自定义总迭代次数
-./out/fuzz_test --iteration 5000
-
-# 手动配置模式：指定 worker 线程数和 BLAS 线程数
-./out/fuzz_test --thread 10 --blas-threads 4
-
-# 查看帮助信息
-./out/fuzz_test -h
+fuzz_test --iteration 5000
 ```
 
-**参数说明**：
-- `--thread N`：指定 worker 线程数（手动模式，跳过多阶段测试）
-- `--blas-threads N`：指定每个 GEMM 调用的 BLAS 线程数（需与 --thread 配合使用）
-- `--iteration N`：指定总迭代次数（默认 100）
-
-### 测试错误检测功能
-
-验证 fuzz_test 能否正确检测到实现中的错误：
+### 手动配置模式
 
 ```bash
-cd fuzz_test
+# 指定 worker 线程数和 BLAS 线程数
+fuzz_test --thread 10 --blas-threads 4 --iteration 100
 
-# 使用故意有错误的实现进行测试
-./test_buggy.sh
-
-# 或手动执行
-mkdir build && cd build
-cmake -DUSE_BUGGY_IMPL=ON ..
-cmake --build .
-cd ..
-./out/fuzz_test --thread 2 --iteration 10
-# 预期输出应该包含 Failed: > 0
+# 仅指定迭代次数（使用默认多阶段配置）
+fuzz_test --iteration 100
 ```
 
-### 清理
+### 查看帮助信息
 
 ```bash
-rm -rf build out
+fuzz_test -h
 ```
+
+## 运行参数说明
+
+| 参数 | 说明 |
+|------|------|
+| `--thread N` | 指定 worker 线程数（手动模式，跳过多阶段测试） |
+| `--blas-threads N` | 指定每个 GEMM 调用的 BLAS 线程数（需与 --thread 配合使用） |
+| `--iteration N` | 指定总迭代次数（默认 100） |
+| `-h, --help` | 显示帮助信息 |
 
 ## 输出示例
 
-### 成功输出（多阶段自动测试）
+### 多阶段自动测试输出
 
 ```
 Starting fuzz test (multi-stage):
-  Detected cores: 40
+  Cores (detected): 40
   Test stages: 4
 
 ========================================
@@ -167,11 +116,11 @@ Final Results:
 ========================================
 ```
 
-### 失败输出（当检测到错误时）
+### 失败输出示例
 
 ```
 ========================================
-Results:
+Final Results:
   Total:   100
   Passed:  98
   Failed:  2
@@ -205,7 +154,7 @@ fuzz_test/
 ├── fuzz_test_random.cpp     # 随机参数生成
 ├── fuzz_test_compare.cpp    # 矩阵结果比对
 ├── fuzz_test_report.cpp     # 失败信息输出
-├── fuzz_test_config.h       # 配置常量（维度范围、对齐要求）
+├── fuzz_test_config.h       # 配置常量（维度范围、线程配置）
 ├── fuzz_test_failure.h      # 失败信息结构定义
 ├── fuzz_test_worker.h       # 线程相关声明
 ├── README.md                # 本文档
@@ -253,7 +202,7 @@ fuzz_test/
 
 ### 4. 多线程测试模型
 
-测试采用**两层嵌套并行**架构：
+测试采用**两层嵌套并行**架构，解决线程过度订阅问题：
 
 - **外层**：`std::thread` worker 线程并发执行测试迭代
 - **内层**：OpenMP 线程在单个 GEMM 操作内部并行
@@ -262,11 +211,11 @@ fuzz_test/
 - 自动检测 CPU 核心数
 - 对每个 BLAS 线程模式运行独立测试阶段
 - Worker 数量自动计算：`workers = MAX_CORES / blas_threads`
-- 避免线程过度订阅，总线程数 ≈ CPU 核心数
+- 避免线程过度订阅，确保总线程数 ≈ CPU 核心数
 
 **手动配置模式**：
 - 使用 `--thread` 和 `--blas-threads` 手动指定配置
-- 适用于特定测试场景
+- 适用于特定测试场景或性能调优
 
 **其他特性**：
 - 线程隔离：每个线程使用独立的 RNG 种子，无共享可变状态
@@ -280,9 +229,51 @@ fuzz_test/
 - **失败报告**：打印完整参数配置和首个不匹配位置的详细信息
 - **输出格式**：最终汇总统计 + 前 20 个失败的详细诊断
 
+## 配置选项
+
+### 维度范围配置
+
+配置位于 `fuzz_test_config.h`：
+
+```cpp
+/* 维度范围定义 */
+constexpr int DIM_RANGE_SMALL = 64;      // 小维度范围
+constexpr int DIM_RANGE_MEDIUM = 128;    // 中维度范围
+constexpr int DIM_RANGE_LARGE = 512;     // 大维度范围
+
+/* 维度分布概率 (总和建议为 100) */
+constexpr int DIM_PROB_SMALL = 10;       // 0-64 范围概率 (%)
+constexpr int DIM_PROB_MEDIUM = 40;      // 0-512 范围概率 (%)
+constexpr int DIM_PROB_LARGE = 50;       // 0-1024 范围概率 (%)
+```
+
+### 线程配置
+
+配置位于 `fuzz_test_config.h`：
+
+```cpp
+/* 线程配置 */
+// #define MAX_CORES 40              // 最大使用的 CPU 核数（不设置则自动检测）
+#define BLAS_THREADS_MODES {1, 2, 4, 8}  // 要测试的 BLAS 线程模式列表
+```
+
+**配置说明**：
+- `MAX_CORES`：手动指定最大 CPU 核心数（注释掉则自动检测）
+- `BLAS_THREADS_MODES`：定义要测试的 BLAS 线程模式数组
+  - 每个模式将作为独立的测试阶段运行
+  - Worker 数量自动计算：`workers = MAX_CORES / blas_threads`
+
+**示例**：
+- 40 核系统，`BLAS_THREADS_MODES = {1, 2, 4}`：
+  - Stage 1: 40 workers × 1 BLAS thread = 40 threads
+  - Stage 2: 20 workers × 2 BLAS threads = 40 threads
+  - Stage 3: 10 workers × 4 BLAS threads = 40 threads
+
+修改这些常量后重新编译即可生效。
+
 ## 注意事项
 
-1. **测试覆盖**：当前测试维度配置（在 [fuzz_test_config.h](fuzz_test_config.h) 中可调）：
+1. **测试覆盖**：当前测试维度配置（在 `fuzz_test_config.h` 中可调）：
    - 10% 概率：0-64（特殊边界维度）
    - 40% 概率：0-128
    - 50% 概率：0-512
@@ -302,32 +293,7 @@ fuzz_test/
 
 5. **HBM 模式**：使用 `-DUSE_HBM` 编译时，需要链接提供 `HBMAlloc`/`HBMFree` 函数的库
 
-## 配置维度范围
-
-维度测试范围配置位于 [fuzz_test_config.h](fuzz_test_config.h)：
-
-```cpp
-/* 维度范围定义 */
-constexpr int DIM_RANGE_SMALL = 64;      // 小维度范围
-constexpr int DIM_RANGE_MEDIUM = 128;    // 中维度范围
-constexpr int DIM_RANGE_LARGE = 512;     // 大维度范围
-
-/* 维度分布概率 (总和建议为 100) */
-constexpr int DIM_PROB_SMALL = 10;       // 0-64 范围概率 (%)
-constexpr int DIM_PROB_MEDIUM = 40;      // 0-512 范围概率 (%)
-constexpr int DIM_PROB_LARGE = 50;       // 0-1024 范围概率 (%)
-
-/* 缓冲区对齐要求 (字节) */
-constexpr int BUFFER_ALIGNMENT = 64;
-
-/* 线程配置 */
-// #define MAX_CORES 40              // 最大使用的 CPU 核数（不设置则自动检测）
-#define BLAS_THREADS_MODES {1, 2, 4, 8}  // 要测试的 BLAS 线程模式列表
-```
-
-修改这些常量后重新编译即可生效。
-
-## 扩展
+## 扩展方向
 
 如需扩展测试功能，可以考虑：
 
