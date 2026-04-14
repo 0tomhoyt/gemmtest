@@ -205,10 +205,14 @@ cd fuzz_test && ./build.sh --run
 cd fuzz_test && mkdir build && cd build
 cmake -DUSE_HBM=ON .. && cmake --build .
 
-# 2. 压力测试
-./out/fuzz_test --thread 16 --iteration 50000
+# 2. 自动多阶段测试（推荐）
+./out/fuzz_test --iteration 50000
+# 将自动检测 CPU 核心数并运行多个测试阶段
 
-# 3. 验证通过后部署到生产环境
+# 3. 手动配置特定测试
+./out/fuzz_test --thread 16 --blas-threads 4 --iteration 50000
+
+# 4. 验证通过后部署到生产环境
 ```
 
 ## 扩展方向

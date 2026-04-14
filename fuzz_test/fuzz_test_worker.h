@@ -26,6 +26,7 @@ struct ThreadArg {
     int thread_id;
     int iterations;
     unsigned int rand_seed;
+    int blas_threads = 1;  /* Fixed BLAS thread count for this worker */
     std::unique_ptr<ThreadBuffers> buffers;
 };
 

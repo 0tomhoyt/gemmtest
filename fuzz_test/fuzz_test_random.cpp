@@ -73,7 +73,11 @@ public:
      *   - 15%: 4 (quad-threaded)
      *   - 10%: 8 (common for modern CPUs)
      *   - 5%:  1 (default/single-threaded)
+     *
+     * DEPRECATED: Use fixed blas_threads from ThreadArg instead.
+     * This function is kept for backward compatibility but should not be used.
      */
+    [[deprecated("Use fixed blas_threads from ThreadArg instead")]]
     int random_num_threads() {
         std::uniform_int_distribution<int> dist_0_99(0, 99);
         int r = dist_0_99(rng_);

@@ -49,21 +49,24 @@ cmake --build .
 ### 运行参数
 
 ```bash
-# 使用默认参数运行（4 线程，总 100 次迭代）
+# 使用默认参数运行（多阶段自动测试）
 ./out/fuzz_test
-
-# 自定义线程数
-./out/fuzz_test --thread 8
+# 将自动检测 CPU 核心数，并运行多个测试阶段
 
 # 自定义总迭代次数
 ./out/fuzz_test --iteration 5000
 
-# 同时指定线程数和迭代次数
-./out/fuzz_test --thread 8 --iteration 20000
+# 手动配置模式：指定 worker 线程数和 BLAS 线程数
+./out/fuzz_test --thread 10 --blas-threads 4
 
 # 查看帮助信息
 ./out/fuzz_test -h
 ```
+
+**参数说明**：
+- `--thread N`：指定 worker 线程数（手动模式，跳过多阶段测试）
+- `--blas-threads N`：指定每个 GEMM 调用的 BLAS 线程数（需与 --thread 配合使用）
+- `--iteration N`：指定总迭代次数（默认 100）
 
 ### 测试错误检测功能
 
@@ -92,16 +95,71 @@ rm -rf build out
 
 ## 输出示例
 
-### 成功输出
+### 成功输出（多阶段自动测试）
 
 ```
-Starting fuzz test:
-  Threads: 4
-  Total iterations: 100
-  Iterations per thread: 25
+Starting fuzz test (multi-stage):
+  Detected cores: 40
+  Test stages: 4
 
 ========================================
-Results:
+Stage 1/4: BLAS threads = 1
+========================================
+  Workers: 40
+  BLAS threads per worker: 1
+  Total threads: 40
+  Total iterations: 100
+  Iterations per worker: 2 (last worker: 4)
+
+========================================
+Stage 2/4: BLAS threads = 2
+========================================
+  Workers: 20
+  BLAS threads per worker: 2
+  Total threads: 40
+  Total iterations: 100
+  Iterations per worker: 5
+
+========================================
+Stage 3/4: BLAS threads = 4
+========================================
+  Workers: 10
+  BLAS threads per worker: 4
+  Total threads: 40
+  Total iterations: 100
+  Iterations per worker: 10
+
+========================================
+Stage 4/4: BLAS threads = 8
+========================================
+  Workers: 5
+  BLAS threads per worker: 8
+  Total threads: 40
+  Total iterations: 100
+  Iterations per worker: 20
+
+========================================
+Final Results:
+  Total:   400
+  Passed:  400
+  Failed:  0
+  Error rate: 0%
+========================================
+```
+
+### 手动配置模式输出
+
+```
+Starting fuzz test (manual configuration):
+========================================
+  Workers: 10
+  BLAS threads per worker: 4
+  Total threads: 40
+  Total iterations: 100
+  Iterations per worker: 10
+
+========================================
+Final Results:
   Total:   100
   Passed:  100
   Failed:  0
@@ -177,6 +235,8 @@ fuzz_test/
 | `alpha, beta` | 70% 概率选择特殊值 {0,±1,±2,±0.5,±0.25}，30% 概率选择 [-10,10] 随机浮点数 |
 | `lda/ldb/ldc` | 最小值 + 0-7 的随机 padding |
 
+**注意**：BLAS 线程数不再随机，而是通过配置或自动计算确定。
+
 ### 3. HBM 内存分配与对齐支持
 
 矩阵缓冲区支持两种分配模式，通过编译宏 `-DUSE_HBM` 切换：
@@ -193,11 +253,26 @@ fuzz_test/
 
 ### 4. 多线程测试模型
 
-- **命令行参数**：可配置线程数 (`--thread`) 和总迭代次数 (`--iteration`)
-- **线程隔离**：每个线程使用独立的 RNG 种子，无共享可变状态
-- **内存管理**：每个线程独立分配 4 个缓冲区（A、B、C_impl、C_ref）
-- **统计计数**：使用原子计数器统计 total/passed/failed
-- **失败日志**：使用互斥锁保护的失败日志（最多记录 20 个失败的详细信息）
+测试采用**两层嵌套并行**架构：
+
+- **外层**：`std::thread` worker 线程并发执行测试迭代
+- **内层**：OpenMP 线程在单个 GEMM 操作内部并行
+
+**多阶段自动测试**（默认模式）：
+- 自动检测 CPU 核心数
+- 对每个 BLAS 线程模式运行独立测试阶段
+- Worker 数量自动计算：`workers = MAX_CORES / blas_threads`
+- 避免线程过度订阅，总线程数 ≈ CPU 核心数
+
+**手动配置模式**：
+- 使用 `--thread` 和 `--blas-threads` 手动指定配置
+- 适用于特定测试场景
+
+**其他特性**：
+- 线程隔离：每个线程使用独立的 RNG 种子，无共享可变状态
+- 内存管理：每个线程独立分配 4 个缓冲区（A、B、C_impl、C_ref）
+- 统计计数：使用原子计数器统计 total/passed/failed
+- 失败日志：使用互斥锁保护的失败日志（最多记录 20 个失败的详细信息）
 
 ### 5. 正确性比对
 
@@ -213,11 +288,14 @@ fuzz_test/
    - 50% 概率：0-512
    - 可通过修改 `DIM_RANGE_*` 和 `DIM_PROB_*` 常量调整
 
-2. **运行时间**：默认配置（40000 次迭代）通常在几十秒内完成。增加迭代次数会线性增加运行时间
+2. **运行时间**：
+   - 默认配置（100 次迭代 × 4 个测试阶段 = 400 次总迭代）通常在几秒内完成
+   - 多阶段测试会运行多个配置，每个阶段运行指定的迭代次数
+   - 增加迭代次数或 BLAS 线程模式会线性增加运行时间
 
 3. **内存使用**：
    - 每个线程约 4MB（4 个缓冲区 × 1MB）
-   - 4 个线程总计约 16MB
+   - 多阶段测试会为每个阶段独立分配和释放内存
    - 缓冲区对齐到 64 字节边界
 
 4. **优化一致性**：编译使用 `-O2` 优化，与生产构建保持一致，有助于发现优化相关的 bug
@@ -241,6 +319,10 @@ constexpr int DIM_PROB_LARGE = 50;       // 0-1024 范围概率 (%)
 
 /* 缓冲区对齐要求 (字节) */
 constexpr int BUFFER_ALIGNMENT = 64;
+
+/* 线程配置 */
+// #define MAX_CORES 40              // 最大使用的 CPU 核数（不设置则自动检测）
+#define BLAS_THREADS_MODES {1, 2, 4, 8}  // 要测试的 BLAS 线程模式列表
 ```
 
 修改这些常量后重新编译即可生效。
