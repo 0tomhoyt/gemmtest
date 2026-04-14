@@ -253,21 +253,30 @@ constexpr int DIM_PROB_LARGE = 50;       // 0-1024 范围概率 (%)
 
 ```cpp
 /* 线程配置 */
-// #define MAX_CORES 40              // 最大使用的 CPU 核数（不设置则自动检测）
-#define BLAS_THREADS_MODES {1, 2, 4, 8}  // 要测试的 BLAS 线程模式列表
+// #define MAX_CORES 40              // 最大使用的 CPU 核数（注释掉则自动检测）
+#define BLAS_THREADS_MODES {1}             // 要测试的 BLAS 线程模式列表（默认：单线程）
 ```
 
 **配置说明**：
-- `MAX_CORES`：手动指定最大 CPU 核心数（注释掉则自动检测）
+- `MAX_CORES`：手动指定最大 CPU 核心数（注释掉则运行时自动检测）
 - `BLAS_THREADS_MODES`：定义要测试的 BLAS 线程模式数组
   - 每个模式将作为独立的测试阶段运行
   - Worker 数量自动计算：`workers = MAX_CORES / blas_threads`
 
-**示例**：
-- 40 核系统，`BLAS_THREADS_MODES = {1, 2, 4}`：
-  - Stage 1: 40 workers × 1 BLAS thread = 40 threads
-  - Stage 2: 20 workers × 2 BLAS threads = 40 threads
-  - Stage 3: 10 workers × 4 BLAS threads = 40 threads
+**默认配置**：
+- `BLAS_THREADS_MODES = {1}`：仅测试单线程模式，适用于基础功能验证
+- `MAX_CORES` 自动检测：充分利用系统资源
+
+**多阶段测试示例**：
+若要测试多线程配置，可修改为：
+```cpp
+#define BLAS_THREADS_MODES {1, 2, 4, 8}
+```
+在 40 核系统上将产生：
+- Stage 1: 40 workers × 1 BLAS thread = 40 threads
+- Stage 2: 20 workers × 2 BLAS threads = 40 threads
+- Stage 3: 10 workers × 4 BLAS threads = 40 threads
+- Stage 4: 5 workers × 8 BLAS threads = 40 threads
 
 修改这些常量后重新编译即可生效。
 
