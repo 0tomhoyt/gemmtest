@@ -1,0 +1,27 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(make clean:*)",
+      "Bash(make test:*)",
+      "Bash(make)",
+      "Bash(./fuzz_test -t 4 -n 1000)",
+      "Bash(./fuzz_test)",
+      "Bash(./out/fuzz_test -t 4 -n 50)",
+      "Bash(ls -la *.o)",
+      "Bash(cmake --version)",
+      "Bash(./build.sh --clean --run -t 2 -n 25)",
+      "Bash(ls -la /Users/tomhoyt/Desktop/firm_project/unigemm_test/*.h)",
+      "Bash(ls -la *.h)",
+      "Bash(awk '{print $9}')",
+      "Bash(./build.sh --clean --run -t 2 -n 100)",
+      "Bash(./build.sh --clean --run -t 2 -n 50)",
+      "Bash(./test_buggy.sh)",
+      "Bash(ls *.cpp *.h)",
+      "Bash(brew install:*)",
+      "Bash(./build.sh --run -t 2 -n 25)",
+      "Bash(make -j4)",
+      "Bash(git add:*)",
+      "Bash(git reset:*)"
+    ]
+  }
+}

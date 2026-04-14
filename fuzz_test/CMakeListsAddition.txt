@@ -1,0 +1,140 @@
+# ============================================================================
+# CMakeListsAddition.txt - 外部静态库链接配置
+# ============================================================================
+#
+# 此文件提供独立的外部静态库链接配置，不修改原始 CMakeLists.txt
+#
+# 使用方法 1 - 在 CMakeLists.txt 末尾添加一行：
+#   include(CMakeListsAddition.txt)
+#
+# 使用方法 2 - 直接运行时包含：
+#   cmake -DCMAKE_TOOLCHAIN_FILE=CMakeListsAddition.txt ..
+#   或
+#   cmake -DCMAKE_INCLUDE_PATH=. ..
+#
+# 使用方法 3 - 复制内容到 CMakeLists.txt
+#
+# 环境变量：
+#   - UNIGEMM_LIB_NAM: unigemm 库名称（如 unigemm_920f）
+#   - UNIGEMM_DIR: 上层目录路径（如 ..）
+#
+# 外部依赖：
+#   - libopenblas_ref.a: 提供参考实现（cblas_sgemm_ref）
+#   - ${UNIGEMM_LIB_NAM}_static.a: 提供被测实现（cblas_sgemm）
+#
+# ============================================================================
+
+# 创建独立选项
+option(USE_EXTERNAL_LIBS "Link against external precompiled static libraries" OFF)
+
+if(USE_EXTERNAL_LIBS)
+    message(STATUS "========================================")
+    message(STATUS "Using External Static Libraries")
+    message(STATUS "========================================")
+
+    # 设置库文件名称
+    if(NOT DEFINED UNIGEMM_LIB_NAM)
+        set(UNIGEMM_LIB_NAM "unigemm_920f")
+        message(STATUS "UNIGEMM_LIB_NAM: using default '${UNIGEMM_LIB_NAM}'")
+    else()
+        message(STATUS "UNIGEMM_LIB_NAM: ${UNIGEMM_LIB_NAM}")
+    endif()
+
+    # 设置上层目录路径
+    if(NOT DEFINED UNIGEMM_DIR)
+        set(UNIGEMM_DIR "${CMAKE_CURRENT_SOURCE_DIR}/..")
+        message(STATUS "UNIGEMM_DIR: using default '${UNIGEMM_DIR}'")
+    else()
+        message(STATUS "UNIGEMM_DIR: ${UNIGEMM_DIR}")
+    endif()
+
+    # 查找参考库（提供 cblas_sgemm_ref）
+    set(OPENBLAS_REF_SEARCH_PATHS
+        "${CMAKE_CURRENT_SOURCE_DIR}/../libopenblas_ref.a"
+        "${CMAKE_CURRENT_SOURCE_DIR}/libopenblas_ref.a"
+        "${UNIGEMM_DIR}/libopenblas_ref.a"
+        "${UNIGEMM_DIR}/openblas_ref.a"
+    )
+
+    set(OPENBLAS_REF_PATH "")
+    foreach(search_path ${OPENBLAS_REF_SEARCH_PATHS})
+        if(EXISTS "${search_path}")
+            set(OPENBLAS_REF_PATH "${search_path}")
+            break()
+        endif()
+    endforeach()
+
+    # 查找被测库（提供 cblas_sgemm）
+    set(UNIGEMM_LIB_NAME "${UNIGEMM_LIB_NAM}_static")
+    set(UNIGEMM_SEARCH_PATHS
+        "${UNIGEMM_DIR}/${UNIGEMM_LIB_NAME}.a"
+        "${UNIGEMM_DIR}/lib${UNIGEMM_LIB_NAME}.a"
+        "${CMAKE_CURRENT_SOURCE_DIR}/${UNIGEMM_LIB_NAME}.a"
+        "${CMAKE_CURRENT_SOURCE_DIR}/lib${UNIGEMM_LIB_NAME}.a"
+    )
+
+    set(UNIGEMM_LIB_PATH "")
+    foreach(search_path ${UNIGEMM_SEARCH_PATHS})
+        if(EXISTS "${search_path}")
+            set(UNIGEMM_LIB_PATH "${search_path}")
+            break()
+        endif()
+    endforeach()
+
+    # 显示找到的库
+    message(STATUS "")
+    message(STATUS "Library Search Results:")
+    message(STATUS "  OpenBLAS ref: ${OPENBLAS_REF_PATH}")
+    message(STATUS "  UniGEMM impl: ${UNIGEMM_LIB_PATH}")
+
+    # 验证库文件存在
+    if(NOT EXISTS "${OPENBLAS_REF_PATH}")
+        message(FATAL_ERROR
+            "OpenBLAS reference library not found!\n"
+            "Searched paths:\n"
+            "  ${OPENBLAS_REF_SEARCH_PATHS}\n"
+            "Please ensure libopenblas_ref.a is available."
+        )
+    endif()
+
+    if(NOT EXISTS "${UNIGEMM_LIB_PATH}")
+        message(FATAL_ERROR
+            "UniGEMM library not found!\n"
+            "Searched paths for ${UNIGEMM_LIB_NAME}:\n"
+            "  ${UNIGEMM_SEARCH_PATHS}\n"
+            "Please ensure ${UNIGEMM_LIB_NAME}.a is available."
+        )
+    endif()
+
+    message(STATUS "")
+    message(STATUS "External libraries found successfully!")
+
+    # 清空原有的 C 源文件列表，使用外部库
+    set(ORIGINAL_C_SOURCES ${C_SOURCES})
+    set(C_SOURCES "")
+
+    # 更新源文件列表
+    set(SOURCES ${CPP_SOURCES} ${C_SOURCES})
+
+    # 重新创建可执行文件（CMake 需要这样做）
+    # 注意：这会覆盖之前 add_executable 的定义
+    # 在实际使用中，建议将此 include 放在原始 CMakeLists.txt 的 add_executable 之前
+
+    # 链接外部静态库
+    # 注意：需要在 target_link_libraries 调用之后执行
+    # 建议在 CMakeLists.txt 中添加：
+    #   if(USE_EXTERNAL_LIBS)
+    #       target_link_libraries(fuzz_test PRIVATE "${OPENBLAS_REF_PATH}" "${UNIGEMM_LIB_PATH}")
+    #   endif()
+
+    message(STATUS "========================================")
+    message(STATUS "To complete external library setup, add to CMakeLists.txt:")
+    message(STATUS "  target_link_libraries(fuzz_test PRIVATE")
+    message(STATUS "    \"${OPENBLAS_REF_PATH}\"")
+    message(STATUS "    \"${UNIGEMM_LIB_PATH}\")")
+    message(STATUS "  )")
+    message(STATUS "========================================")
+
+else()
+    message(STATUS "Using source files (default build)")
+endif()
