@@ -2,6 +2,7 @@
 name: validate
 description: Validate and test the UniGEMM project (MacBook environment)
 scope: [/Users/tomhoyt/Desktop/firm_project/unigemm_test]
+tools: Bash
 ---
 
 # UniGEMM Project Validation (MacBook)
@@ -16,7 +17,7 @@ Fast validation for development:
 
 ```bash
 cd fuzz_test
-./build.sh --clean --run -t 4 -n 5000
+./build.sh --clean --run --thread 4 --iteration 5000
 ```
 
 ### Full Validation
@@ -25,7 +26,7 @@ Comprehensive testing with more iterations:
 
 ```bash
 cd fuzz_test
-./build.sh --clean --run -t 8 -n 50000
+./build.sh --clean --run --thread 8 --iteration 50000
 ```
 
 ### Debug Validation
@@ -34,7 +35,7 @@ Debug mode with fewer iterations:
 
 ```bash
 cd fuzz_test
-./build.sh --clean --debug --run -t 1 -n 100
+./build.sh --clean --debug --run --thread 1 --iteration 100
 ```
 
 ### Error Detection Validation
@@ -65,13 +66,13 @@ When validating, check for:
 ```
 Starting fuzz test:
   Threads: 4
-  Iterations per thread: 5000
-  Total iterations: 20000
+  Total iterations: 5000
+  Iterations per thread: 1250
 
 ========================================
 Results:
-  Total:   20000
-  Passed:  20000
+  Total:   5000
+  Passed:  5000
   Failed:  0
   Error rate: 0%
 ========================================
@@ -89,7 +90,7 @@ Results:
 
 ## Notes
 
-- Thread count (`-t`) should not exceed CPU core count
-- Iteration count (`-n`) scales linearly with test time
+- Thread count (`--thread`) should not exceed CPU core count
+- Iteration count (`--iteration`) is total across all threads
 - Use `--debug` build option when investigating failures
 - HBM mode (`-DUSE_HBM`) is for ARM64 server only, do not run on MacBook

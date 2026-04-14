@@ -2,6 +2,7 @@
 name: git-sync
 description: Commit all changes and push to origin/main
 scope: [/Users/tomhoyt/Desktop/firm_project/unigemm_test]
+tools: Bash
 ---
 
 # Git Sync

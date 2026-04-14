@@ -47,7 +47,7 @@ while [[ $# -gt 0 ]]; do
             RUN=1
             shift
             ;;
-        -t|-n)
+        --thread|--iteration)
             if [ -n "$2" ] && [[ ! "$2" =~ ^- ]]; then
                 ARGS="$ARGS $1 $2"
                 shift 2
@@ -60,18 +60,18 @@ while [[ $# -gt 0 ]]; do
             echo "Usage: $0 [OPTIONS]"
             echo ""
             echo "Options:"
-            echo "  --clean    Clean build directory before building"
-            echo "  --debug    Build with debug symbols"
-            echo "  --run      Run the test after building"
-            echo "  -t N       Number of threads (passed to fuzz test)"
-            echo "  -n N       Iterations per thread (passed to fuzz test)"
-            echo "  -h, --help Show this help message"
+            echo "  --clean         Clean build directory before building"
+            echo "  --debug         Build with debug symbols"
+            echo "  --run           Run the test after building"
+            echo "  --thread N      Number of threads (passed to fuzz test)"
+            echo "  --iteration N   Total iterations (passed to fuzz test)"
+            echo "  -h, --help      Show this help message"
             echo ""
             echo "Examples:"
-            echo "  $0                  # Build only"
-            echo "  $0 --run            # Build and run with defaults"
-            echo "  $0 --clean --run    # Clean, build and run"
-            echo "  $0 --run -t 4 -n 100 # Build and run with custom args"
+            echo "  $0                        # Build only"
+            echo "  $0 --run                  # Build and run with defaults"
+            echo "  $0 --clean --run          # Clean, build and run"
+            echo "  $0 --run --thread 4 --iteration 100  # Custom args"
             exit 0
             ;;
         *)

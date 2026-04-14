@@ -18,7 +18,7 @@ cd fuzz_test
 ./build.sh --clean --run
 
 # 传递参数给测试程序
-./build.sh --run -t 4 -n 1000
+./build.sh --run --thread 4 --iteration 100
 
 # Debug 模式构建
 ./build.sh --debug
@@ -49,17 +49,17 @@ cmake --build .
 ### 运行参数
 
 ```bash
-# 使用默认参数运行（4 线程，每线程 100 次迭代）
+# 使用默认参数运行（4 线程，总 100 次迭代）
 ./out/fuzz_test
 
 # 自定义线程数
-./out/fuzz_test -t 8
+./out/fuzz_test --thread 8
 
-# 自定义每线程迭代次数
-./out/fuzz_test -n 5000
+# 自定义总迭代次数
+./out/fuzz_test --iteration 5000
 
 # 同时指定线程数和迭代次数
-./out/fuzz_test -t 8 -n 20000
+./out/fuzz_test --thread 8 --iteration 20000
 
 # 查看帮助信息
 ./out/fuzz_test -h
@@ -80,7 +80,7 @@ mkdir build && cd build
 cmake -DUSE_BUGGY_IMPL=ON ..
 cmake --build .
 cd ..
-./out/fuzz_test -t 2 -n 10
+./out/fuzz_test --thread 2 --iteration 10
 # 预期输出应该包含 Failed: > 0
 ```
 
@@ -97,13 +97,13 @@ rm -rf build out
 ```
 Starting fuzz test:
   Threads: 4
-  Iterations per thread: 100
-  Total iterations: 40000
+  Total iterations: 100
+  Iterations per thread: 25
 
 ========================================
 Results:
-  Total:   40000
-  Passed:  40000
+  Total:   100
+  Passed:  100
   Failed:  0
   Error rate: 0%
 ========================================
@@ -114,10 +114,10 @@ Results:
 ```
 ========================================
 Results:
-  Total:   40000
-  Passed:  39998
+  Total:   100
+  Passed:  98
   Failed:  2
-  Error rate: 0.0050%
+  Error rate: 2%
 ========================================
 
 First 2 failures:
@@ -193,7 +193,7 @@ fuzz_test/
 
 ### 4. 多线程测试模型
 
-- **命令行参数**：可配置线程数 (`-t`) 和每线程迭代次数 (`-n`)
+- **命令行参数**：可配置线程数 (`--thread`) 和总迭代次数 (`--iteration`)
 - **线程隔离**：每个线程使用独立的 RNG 种子，无共享可变状态
 - **内存管理**：每个线程独立分配 4 个缓冲区（A、B、C_impl、C_ref）
 - **统计计数**：使用原子计数器统计 total/passed/failed

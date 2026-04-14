@@ -59,7 +59,7 @@ make
 cmake -DUSE_EXTERNAL_LIBS=ON -DUNIGEMM_LIB_NAM=custom_name ..
 
 # 运行测试
-./out/fuzz_test -t 4 -n 1000
+./out/fuzz_test --thread 4 --iteration 100
 ```
 
 ## 方法 2：命令行传递配置
@@ -147,5 +147,5 @@ cmake -DUSE_EXTERNAL_LIBS=ON ..
 make
 
 # 4. 运行测试
-./out/fuzz_test -t 4 -n 100
+./out/fuzz_test --thread 4 --iteration 100
 ```

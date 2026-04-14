@@ -14,31 +14,39 @@
 
 int main(int argc, char *argv[]) {
     int num_threads = 4;
-    int iterations = 100;
+    int total_iterations = 100;
 
     /* Parse command line arguments */
     for (int i = 1; i < argc; i++) {
-        if (strcmp(argv[i], "-t") == 0 && i + 1 < argc) {
+        if (strcmp(argv[i], "--thread") == 0 && i + 1 < argc) {
             num_threads = std::atoi(argv[i + 1]);
             i++;
-        } else if (strcmp(argv[i], "-n") == 0 && i + 1 < argc) {
-            iterations = std::atoi(argv[i + 1]);
+        } else if (strcmp(argv[i], "--iteration") == 0 && i + 1 < argc) {
+            total_iterations = std::atoi(argv[i + 1]);
             i++;
         } else if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0) {
-            std::cout << "Usage: " << argv[0] << " [-t <threads>] [-n <iterations_per_thread>]\n";
-            std::cout << "  -t <threads>     Number of threads (default: 4)\n";
-            std::cout << "  -n <iterations>  Iterations per thread (default: 100)\n";
+            std::cout << "Usage: " << argv[0] << " [--thread <threads>] [--iteration <total_iterations>]\n";
+            std::cout << "  --thread <threads>     Number of threads (default: 4)\n";
+            std::cout << "  --iteration <total>    Total iterations across all threads (default: 100)\n";
             return 0;
         }
     }
 
     if (num_threads < 1) num_threads = 1;
-    if (iterations < 1) iterations = 1;
+    if (total_iterations < 1) total_iterations = 1;
+
+    /* Calculate iterations per thread (last thread handles remainder) */
+    int base_iterations = total_iterations / num_threads;
+    int remainder = total_iterations % num_threads;
 
     std::cout << "Starting fuzz test:\n";
     std::cout << "  Threads: " << num_threads << "\n";
-    std::cout << "  Iterations per thread: " << iterations << "\n";
-    std::cout << "  Total iterations: " << num_threads * iterations << "\n\n";
+    std::cout << "  Total iterations: " << total_iterations << "\n";
+    std::cout << "  Iterations per thread: " << base_iterations;
+    if (remainder > 0) {
+        std::cout << " (last thread: " << (base_iterations + remainder) << ")";
+    }
+    std::cout << "\n\n";
 
     /* Initialize thread data */
     std::vector<ThreadArg> targs(num_threads);
@@ -52,7 +60,8 @@ int main(int argc, char *argv[]) {
     /* Create threads and allocate buffers */
     for (int i = 0; i < num_threads; i++) {
         targs[i].thread_id = i;
-        targs[i].iterations = iterations;
+        /* Last thread handles remainder iterations */
+        targs[i].iterations = base_iterations + (i == num_threads - 1 ? remainder : 0);
         targs[i].rand_seed = seed + i * 7919;  /* Use prime number for better distribution */
 
         /* Allocate buffers for this thread */

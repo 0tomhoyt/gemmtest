@@ -54,7 +54,7 @@ cd fuzz_test
 cd fuzz_test/build
 cmake -DUSE_HBM=ON ..
 cmake --build .
-./out/fuzz_test -t 4 -n 100
+./out/fuzz_test --thread 4 --iteration 100
 ```
 
 **特点：**
@@ -106,7 +106,7 @@ cd fuzz_test && ./build.sh --run
 # ARM64 服务器
 cd fuzz_test && mkdir build && cd build
 cmake -DUSE_HBM=ON .. && cmake --build .
-./out/fuzz_test -t 4 -n 100
+./out/fuzz_test --thread 4 --iteration 100
 ```
 
 详细文档：[fuzz_test/README.md](fuzz_test/README.md)
@@ -192,7 +192,7 @@ bool ThreadBuffers::allocate(BLASINT max_dim, BLASINT max_ld) {
 cd fuzz_test && ./build.sh --run
 
 # 2. 调试模式
-./build.sh --debug --run -t 1 -n 100
+./build.sh --debug --run --thread 1 --iteration 100
 
 # 3. 错误检测测试
 ./test_buggy.sh
@@ -206,7 +206,7 @@ cd fuzz_test && mkdir build && cd build
 cmake -DUSE_HBM=ON .. && cmake --build .
 
 # 2. 压力测试
-./out/fuzz_test -t 16 -n 50000
+./out/fuzz_test --thread 16 --iteration 50000
 
 # 3. 验证通过后部署到生产环境
 ```
