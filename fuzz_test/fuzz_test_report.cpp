@@ -27,31 +27,26 @@ inline const char* order_name(enum CBLAS_ORDER order) {
 
 /* Print failure details */
 inline void print_failure(const FailureInfo& info) {
-    std::cout << "  Failure:\n";
-    std::cout << "    Parameters:\n";
-    std::cout << "      order=" << order_name(info.order)
-              << " transA=" << trans_name(info.transA)
-              << " transB=" << trans_name(info.transB) << "\n";
-    std::cout << "      m=" << info.m
-              << " n=" << info.n
-              << " k=" << info.k << "\n";
+    std::cout << "┌─ Test Failure\n";
+    std::cout << "│  Parameters:\n";
+    std::cout << "│    " << order_name(info.order) << " | "
+              << "transA=" << trans_name(info.transA) << ", "
+              << "transB=" << trans_name(info.transB) << " | "
+              << "dims=[" << info.m << "," << info.n << "," << info.k << "]\n";
     std::cout << std::setprecision(6);
-    std::cout << "      alpha=" << info.alpha
-              << " beta=" << info.beta << "\n";
-    std::cout << "      lda=" << info.lda
-              << " ldb=" << info.ldb
-              << " ldc=" << info.ldc << "\n";
-    std::cout << "      threads=" << info.num_threads << "\n";
+    std::cout << "│    α=" << info.alpha << ", β=" << info.beta << " | "
+              << "lda=" << info.lda << ", ldb=" << info.ldb << ", ldc=" << info.ldc << " | "
+              << "threads=" << info.num_threads << "\n";
 
-    std::cout << "    Mismatches (showing " << info.num_mismatches << "):\n";
+    std::cout << "│  Mismatches (" << info.num_mismatches << " shown):\n";
     for (int idx = 0; idx < info.num_mismatches; idx++) {
         const MismatchRecord& m = info.mismatches[idx];
         std::cout << std::setprecision(8);
-        std::cout << "      [" << m.i << "," << m.j << "] "
-                  << "impl=" << m.impl_val << " "
-                  << "ref=" << m.ref_val << " "
-                  << "rel_error=" << m.rel_error << "\n";
+        std::cout << "│    [" << m.i << "," << m.j << "] "
+                  << "impl=" << m.impl_val << ", ref=" << m.ref_val << ", "
+                  << "rel_err=" << m.rel_error << "\n";
     }
+    std::cout << "└─────────────────────────────────────────────────────────\n";
 }
 
 #endif /* FUZZ_TEST_REPORT_H */
