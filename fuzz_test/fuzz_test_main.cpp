@@ -22,22 +22,30 @@ static int progress_target = 0;
 
 /* Progress bar display function */
 static void progress_bar_func() {
-    const int bar_width = 40;
+    const int bar_width = 15;
     while (progress_running.load()) {
         int current = completed_tests.load(std::memory_order_relaxed);
+        int small = completed_small.load(std::memory_order_relaxed);
+        int medium = completed_medium.load(std::memory_order_relaxed);
+        int large = completed_large.load(std::memory_order_relaxed);
+
         if (progress_target > 0) {
-            float ratio = static_cast<float>(current) / progress_target;
-            if (ratio > 1.0f) ratio = 1.0f;
+            float total_ratio = static_cast<float>(current) / progress_target;
+            if (total_ratio > 1.0f) total_ratio = 1.0f;
+            int total_filled = static_cast<int>(total_ratio * bar_width);
 
-            int filled = static_cast<int>(ratio * bar_width);
-
-            std::cout << "\r  [";
+            /* Build single-line progress display */
+            std::cout << "\r  ";
+            std::cout << "S[" << std::setw(3) << small << "] ";
+            std::cout << "M[" << std::setw(3) << medium << "] ";
+            std::cout << "L[" << std::setw(3) << large << "] ";
+            std::cout << " [";
             for (int i = 0; i < bar_width; i++) {
-                if (i < filled) std::cout << "=";
-                else if (i == filled) std::cout << ">";
+                if (i < total_filled) std::cout << "=";
+                else if (i == total_filled) std::cout << ">";
                 else std::cout << " ";
             }
-            std::cout << "] " << std::setw(3) << static_cast<int>(ratio * 100) << "% ("
+            std::cout << "] " << std::setw(3) << static_cast<int>(total_ratio * 100) << "% ("
                       << std::setw(4) << current << "/" << progress_target << ")" << std::flush;
         }
         std::this_thread::sleep_for(std::chrono::milliseconds(100));

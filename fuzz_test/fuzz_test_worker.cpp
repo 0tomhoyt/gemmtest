@@ -128,6 +128,19 @@ void thread_worker(ThreadArg* targ) {
         total_tests.fetch_add(1, std::memory_order_relaxed);
         completed_tests.fetch_add(1, std::memory_order_relaxed);
 
+        /* Increment the appropriate size category counter */
+        int max_dim = m;
+        if (n > max_dim) max_dim = n;
+        if (k > max_dim) max_dim = k;
+
+        if (max_dim <= 128) {
+            completed_small.fetch_add(1, std::memory_order_relaxed);
+        } else if (max_dim <= 512) {
+            completed_medium.fetch_add(1, std::memory_order_relaxed);
+        } else {
+            completed_large.fetch_add(1, std::memory_order_relaxed);
+        }
+
         if (passed) {
             passed_tests.fetch_add(1, std::memory_order_relaxed);
         } else {

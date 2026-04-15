@@ -7,6 +7,11 @@ std::atomic<int> passed_tests{0};
 std::atomic<int> failed_tests{0};
 std::atomic<int> completed_tests{0};  /* For progress tracking */
 
+/* Completed tests by size category */
+std::atomic<int> completed_small{0};
+std::atomic<int> completed_medium{0};
+std::atomic<int> completed_large{0};
+
 /* Mutex for failure log */
 std::mutex fail_mutex;
 

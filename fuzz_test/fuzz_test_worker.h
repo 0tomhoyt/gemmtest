@@ -15,6 +15,11 @@ extern std::atomic<int> passed_tests;
 extern std::atomic<int> failed_tests;
 extern std::atomic<int> completed_tests;  /* For progress tracking */
 
+/* Completed tests by size category */
+extern std::atomic<int> completed_small;
+extern std::atomic<int> completed_medium;
+extern std::atomic<int> completed_large;
+
 /* Mutex for failure log */
 extern std::mutex fail_mutex;
 
