@@ -13,29 +13,63 @@ class RandomGenerator {
 public:
     explicit RandomGenerator(unsigned int seed) : rng_(seed) {}
 
-    /* Weighted random for dimensions
-     *
-     * 分布策略:
-     *   - DIM_PROB_SMALL (10%): 从特殊小维度列表中选择 (1-64)
-     *   - DIM_PROB_MEDIUM (40%): 随机选择 1-512
-     *   - DIM_PROB_LARGE (50%): 随机选择 1-1024
-     */
-    BLASINT random_dim() {
+    /* 随机选择一个测试类别，返回该类别的最大维度范围 */
+    int get_test_category() {
         std::uniform_int_distribution<int> dist_0_99(0, 99);
         int r = dist_0_99(rng_);
 
         if (r < DIM_PROB_SMALL) {
-            std::uniform_int_distribution<int> dist_0_10(0, special_small_dims_.size() - 1);
-            return special_small_dims_[dist_0_10(rng_)];
+            return DIM_RANGE_SMALL;  // 1-128
         }
-
         if (r < DIM_PROB_SMALL + DIM_PROB_MEDIUM) {
-            std::uniform_int_distribution<BLASINT> dist(1, DIM_RANGE_MEDIUM);
-            return dist(rng_);
+            return DIM_RANGE_MEDIUM;  // 1-512
         }
+        return DIM_RANGE_LARGE;  // 1-1024
+    }
 
-        std::uniform_int_distribution<BLASINT> dist(1, DIM_RANGE_LARGE);
-        return dist(rng_);
+    /* 根据指定类别生成三个维度 (m, n, k)
+     * 确保 max(m,n,k) 的分布符合配置的概率
+     */
+    void random_three_dims(BLASINT& m, BLASINT& n, BLASINT& k) {
+        int category = get_test_category();
+
+        if (category == DIM_RANGE_SMALL) {
+            /* Small: 所有维度都在 1-128 */
+            std::uniform_int_distribution<BLASINT> dist(1, DIM_RANGE_SMALL);
+            m = dist(rng_);
+            n = dist(rng_);
+            k = dist(rng_);
+        } else if (category == DIM_RANGE_MEDIUM) {
+            /* Medium: 所有维度都在 1-512，至少一个 > 128 */
+            std::uniform_int_distribution<BLASINT> dist_small(1, DIM_RANGE_SMALL);
+            std::uniform_int_distribution<BLASINT> dist_medium(DIM_RANGE_SMALL + 1, DIM_RANGE_MEDIUM);
+            m = dist_medium(rng_);
+            n = dist_medium(rng_);
+            k = dist_medium(rng_);
+            /* 30% 概率让某个维度变小，增加混合情况 */
+            std::uniform_int_distribution<int> dist_0_99(0, 99);
+            if (dist_0_99(rng_) < 30) {
+                int choice = dist_0_99(rng_) % 3;
+                if (choice == 0) m = dist_small(rng_);
+                else if (choice == 1) n = dist_small(rng_);
+                else k = dist_small(rng_);
+            }
+        } else {
+            /* Large: 所有维度都在 1-1024，至少一个 > 512 */
+            std::uniform_int_distribution<BLASINT> dist_medium(1, DIM_RANGE_MEDIUM);
+            std::uniform_int_distribution<BLASINT> dist_large(DIM_RANGE_MEDIUM + 1, DIM_RANGE_LARGE);
+            m = dist_large(rng_);
+            n = dist_large(rng_);
+            k = dist_large(rng_);
+            /* 30% 概率让某个维度变小，增加混合情况 */
+            std::uniform_int_distribution<int> dist_0_99(0, 99);
+            if (dist_0_99(rng_) < 30) {
+                int choice = dist_0_99(rng_) % 3;
+                if (choice == 0) m = dist_medium(rng_);
+                else if (choice == 1) n = dist_medium(rng_);
+                else k = dist_medium(rng_);
+            }
+        }
     }
 
     /* Random float for alpha/beta */
@@ -116,11 +150,6 @@ private:
     /* Special values for alpha/beta with higher probability */
     static constexpr std::array<float, 8> special_values_ = {
         0.0f, 1.0f, -1.0f, 2.0f, 0.5f, -0.5f, 0.25f, -2.0f
-    };
-
-    /* Special small dimensions for edge case testing (1-64) */
-    static constexpr std::array<BLASINT, 11> special_small_dims_ = {
-        1, 2, 3, 4, 7, 8, 15, 16, 31, 32, 63
     };
 };
 

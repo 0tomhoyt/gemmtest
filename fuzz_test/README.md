@@ -160,7 +160,7 @@ fuzz_test/
 | 参数 | 随机化策略 |
 |------|------------|
 | `order` | RowMajor / ColMajor 各 50% 概率 |
-| `transA/transB` | 4 个枚举值均匀随机分布 |
+| `transA/transB` | 2 个枚举值 (NoTrans/Trans，实数 SGEMM 中 ConjTrans=Trans) |
 | `m, n, k` | 40% 概率 0-128（小维度），40% 概率 0-512（中维度），20% 概率 0-1024（大维度） |
 | `alpha, beta` | 70% 概率选择特殊值 {0,±1,±2,±0.5,±0.25}，30% 概率选择 [-10,10] 随机浮点数 |
 | `lda/ldb/ldc` | 最小值 + 0-7 的随机 padding |

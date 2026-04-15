@@ -20,9 +20,9 @@ void thread_worker(ThreadArg* targ) {
         enum CBLAS_TRANSPOSE transA = rng.random_transpose();
         enum CBLAS_TRANSPOSE transB = rng.random_transpose();
 
-        BLASINT m = rng.random_dim();
-        BLASINT n = rng.random_dim();
-        BLASINT k = rng.random_dim();
+        /* Generate three dimensions with controlled category distribution */
+        BLASINT m, n, k;
+        rng.random_three_dims(m, n, k);
 
         float alpha = rng.random_alpha_beta();
         float beta = rng.random_alpha_beta();
