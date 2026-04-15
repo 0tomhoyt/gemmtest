@@ -28,16 +28,18 @@ constexpr int BUFFER_ALIGNMENT = 64;
  * 线程配置 (Threading Configuration)
  * ============================================================ */
 
-/* 最大使用的CPU核数 (不设置则运行时自动检测) */
+/* 最大并行 worker 线程数 (不设置则运行时自动检测 CPU 核数)
+ * 每个测试阶段的 std::thread 数量 = MAX_WORKERS（不再除以 blas_threads）
+ * BLAS 线程数由 BLAS_THREADS_MODES 独立控制
+ */
 #ifdef USE_HBM
-#define MAX_CORES 100  /* HBM 模式下默认使用 100 核 */
+#define MAX_WORKERS 100  /* HBM 模式默认 100 worker */
 #else
-// #define MAX_CORES 100  /* 非 HBM 模式，取消注释以手动指定 */
+// #define MAX_WORKERS 100  /* 非 HBM 模式，取消注释以手动指定 */
 #endif
 
-/* 要测试的BLAS线程模式列表 (线程计数数组)
- * 每个模式将作为独立的测试阶段运行，其中：
- *   num_workers = MAX_CORES / blas_threads
+/* 要测试的BLAS线程模式列表 (每个 worker 内部的 BLAS 线程数)
+ * 每个模式将作为独立的测试阶段运行，worker 数量固定为 MAX_WORKERS
  */
 #ifndef BLAS_THREADS_MODES
 #define BLAS_THREADS_MODES {1, 8}

@@ -59,16 +59,26 @@ int main(int argc, char *argv[]) {
     int num_threads = 4;
     int total_iterations = 100;
 
-    /* 检测CPU核心数 */
-    int max_cores = std::thread::hardware_concurrency();
-#ifdef MAX_CORES
-    max_cores = MAX_CORES;  /* 使用配置值如果已定义 */
+    /* 检测CPU核心数，作为 MAX_WORKERS 默认值 */
+    int max_workers = std::thread::hardware_concurrency();
+
+    /* 检查 UNIGEMM_MAX_WORKERS 环境变量（最高优先级）*/
+    const char* env_workers = std::getenv("UNIGEMM_MAX_WORKERS");
+    if (env_workers != nullptr) {
+        int env_val = std::atoi(env_workers);
+        if (env_val > 0 && env_val <= 1024) {  /* 安全上限检查 */
+            max_workers = env_val;
+        }
+    }
+
+#ifdef MAX_WORKERS
+    max_workers = MAX_WORKERS;  /* 编译时配置 */
 #endif
-    if (max_cores < 1) max_cores = 4;  /* 回退值 */
+    if (max_workers < 1) max_workers = 4;  /* 回退值 */
 
     /* BLAS线程模式配置 */
 #ifndef BLAS_THREADS_MODES
-#define BLAS_THREADS_MODES {1, 2, 4, 8}
+#define BLAS_THREADS_MODES {1, 8}
 #endif
     std::vector<int> blas_threads_modes = BLAS_THREADS_MODES;
 
@@ -120,16 +130,12 @@ int main(int argc, char *argv[]) {
     } else {
         /* 多阶段测试：自动配置 */
         std::cout << "Starting fuzz test (multi-stage):\n";
-#ifdef MAX_CORES
-        std::cout << "  Cores (configured): " << max_cores << "\n";
-#else
-        std::cout << "  Cores (detected): " << max_cores << "\n";
-#endif
+        std::cout << "  Workers: " << max_workers << "\n";
         std::cout << "  Test stages: " << blas_threads_modes.size() << "\n\n";
 
         int stage = 1;
         for (int blas_threads : blas_threads_modes) {
-            int workers = max_cores / blas_threads;
+            int workers = max_workers;
             if (workers < 1) workers = 1;
 
             std::cout << "========================================\n";

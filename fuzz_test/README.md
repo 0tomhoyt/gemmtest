@@ -253,54 +253,104 @@ constexpr int DIM_PROB_LARGE = 50;       // 0-1024 范围概率 (%)
 
 ```cpp
 /* 线程配置 */
-// #define MAX_CORES 40              // 最大使用的 CPU 核数（注释掉则自动检测）
-#define BLAS_THREADS_MODES {1}             // 要测试的 BLAS 线程模式列表（默认：单线程）
+// #define MAX_WORKERS 100           // 最大并行 worker 数（注释掉则运行时自动检测 CPU 核数）
+#define BLAS_THREADS_MODES {1, 8}       // 要测试的 BLAS 线程模式列表
 ```
 
 **配置说明**：
-- `MAX_CORES`：手动指定最大 CPU 核心数（注释掉则运行时自动检测）
-- `BLAS_THREADS_MODES`：定义要测试的 BLAS 线程模式数组
-  - 每个模式将作为独立的测试阶段运行
-  - Worker 数量自动计算：`workers = MAX_CORES / blas_threads`
+- `MAX_WORKERS`：控制外层 `std::thread` 的数量（与 `blas_threads` 无关，不再做除法）
+  - 不设置则运行时自动检测 CPU 核数
+  - **HBM 模式**：默认 100 worker
+  - 300+ 核系统可直接使用自动检测，充分利用资源
+- `BLAS_THREADS_MODES`：定义每个 worker 内部使用的 BLAS 线程数
+  - 每个模式作为独立的测试阶段运行
+  - 每个阶段固定使用 `MAX_WORKERS` 个 worker
 
 **默认配置**：
-- `BLAS_THREADS_MODES = {1}`：仅测试单线程模式，适用于基础功能验证
-- `MAX_CORES` 自动检测：充分利用系统资源
+- `MAX_WORKERS` 自动检测：300 核系统 = 300 workers
+- `BLAS_THREADS_MODES = {1, 8}`：测试单线程和 8 线程模式
 
 **多阶段测试示例**：
-若要测试多线程配置，可修改为：
-```cpp
-#define BLAS_THREADS_MODES {1, 2, 4, 8}
-```
-在 40 核系统上将产生：
-- Stage 1: 40 workers × 1 BLAS thread = 40 threads
-- Stage 2: 20 workers × 2 BLAS threads = 40 threads
-- Stage 3: 10 workers × 4 BLAS threads = 40 threads
-- Stage 4: 5 workers × 8 BLAS threads = 40 threads
+在 300 核系统上使用 `{1, 8}` 配置：
+- Stage 1: 300 workers × 1 BLAS thread（不创建 OpenMP，仅 300 std::thread）
+- Stage 2: 300 workers × 8 BLAS threads（每个 worker 内部 8 个 OpenMP 线程）
 
 修改这些常量后重新编译即可生效。
 
+### OpenMP 环境变量配置
+
+Stage 2（blas_threads > 1）会创建大量 OpenMP 线程。如果遇到 OMP Error #34（资源不可用），可以通过环境变量限制 OpenMP 资源：
+
+```bash
+# 限制 OpenMP 同时执行的最大线程数
+export OMP_THREAD_LIMIT=64
+
+# 减少每线程栈大小（默认 4M）
+export OMP_STACKSIZE=2M
+
+# 使用被动等待策略（减少资源占用）
+export OMP_WAIT_POLICY=passive
+
+# 减少线程保持活跃的时间
+export KMP_BLOCKTIME=50ms
+```
+
+完整运行示例：
+```bash
+export OMP_THREAD_LIMIT=64 OMP_STACKSIZE=2M
+./out/fuzz_test --iteration 5000
+```
+
+**关键环境变量**：
+
+| 环境变量 | 作用 | 推荐值 |
+|----------|------|--------|
+| `OMP_THREAD_LIMIT` | 同时执行的最大线程数 | 64-128 |
+| `OMP_STACKSIZE` | 每线程栈大小 | 2M-4M |
+| `OMP_WAIT_POLICY` | 等待策略（active/passive） | passive |
+| `KMP_BLOCKTIME` | 线程保持活跃时间 | 50ms |
+
+### 运行时覆盖配置
+
+可以通过 `UNIGEMM_MAX_WORKERS` 环境变量在运行时覆盖 worker 数量：
+
+```bash
+# 临时限制到 80 worker（无需重新编译）
+UNIGEMM_MAX_WORKERS=80 ./out/fuzz_test --iteration 500
+
+# 300 核系统想跑满，确保不设置此变量即可
+```
+
+优先级：`UNIGEMM_MAX_WORKERS` > `MAX_WORKERS` 编译配置 > CPU 核数自动检测
+
 ## 注意事项
 
-1. **测试覆盖**：当前测试维度配置（在 `fuzz_test_config.h` 中可调）：
+1. **线程控制**：
+   - `MAX_WORKERS` 控制外层 std::thread 数量，与 `blas_threads` 独立
+   - 默认运行时自动检测 CPU 核数，300+ 核系统可充分利用
+   - 当 `blas_threads=1` 时不创建 OpenMP 线程，只有 std::thread workers
+   - 当 `blas_threads>1` 时，总线程数 ≈ workers + (workers × blas_threads)
+   - 如果 Stage 2 触发 OMP Error #34，可通过 `OMP_THREAD_LIMIT` 限制 OpenMP 资源，或使用 `UNIGEMM_MAX_WORKERS` 减少 worker 数
+
+2. **测试覆盖**：当前测试维度配置（在 `fuzz_test_config.h` 中可调）：
    - 10% 概率：0-64（特殊边界维度）
    - 40% 概率：0-128
    - 50% 概率：0-512
    - 可通过修改 `DIM_RANGE_*` 和 `DIM_PROB_*` 常量调整
 
-2. **运行时间**：
-   - 默认配置（100 次迭代 × 4 个测试阶段 = 400 次总迭代）通常在几秒内完成
+3. **运行时间**：
+   - 默认配置（100 次迭代 × 2 个测试阶段 = 200 次总迭代）通常在几秒内完成
    - 多阶段测试会运行多个配置，每个阶段运行指定的迭代次数
    - 增加迭代次数或 BLAS 线程模式会线性增加运行时间
 
-3. **内存使用**：
+4. **内存使用**：
    - 每个线程约 4MB（4 个缓冲区 × 1MB）
    - 多阶段测试会为每个阶段独立分配和释放内存
    - 缓冲区对齐到 64 字节边界
 
-4. **优化一致性**：编译使用 `-O2` 优化，与生产构建保持一致，有助于发现优化相关的 bug
+5. **优化一致性**：编译使用 `-O2` 优化，与生产构建保持一致，有助于发现优化相关的 bug
 
-5. **HBM 模式**：使用 `-DUSE_HBM` 编译时，需要链接提供 `HBMAlloc`/`HBMFree` 函数的库
+6. **HBM 模式**：使用 `-DUSE_HBM` 编译时，需要链接提供 `HBMAlloc`/`HBMFree` 函数的库
 
 ## 扩展方向
 
