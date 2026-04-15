@@ -29,8 +29,7 @@ constexpr int BUFFER_ALIGNMENT = 64;
  * ============================================================ */
 
 /* 最大并行 worker 线程数 (不设置则运行时自动检测 CPU 核数)
- * 每个测试阶段的 std::thread 数量 = MAX_WORKERS（不再除以 blas_threads）
- * BLAS 线程数由 BLAS_THREADS_MODES 独立控制
+ * 每个测试阶段的 std::thread 数量 = MAX_WORKERS
  */
 #ifdef USE_HBM
 #define MAX_WORKERS 100  /* HBM 模式默认 100 worker */
@@ -38,11 +37,10 @@ constexpr int BUFFER_ALIGNMENT = 64;
 #define MAX_WORKERS 8  /* 非 HBM 模式，取消注释以手动指定 */
 #endif
 
-/* 要测试的BLAS线程模式列表 (每个 worker 内部的 BLAS 线程数)
- * 每个模式将作为独立的测试阶段运行，worker 数量固定为 MAX_WORKERS
+/* BLAS 线程数范围配置 (用于多线程阶段)
+ * 多线程阶段将使用 2-MAX_BLAS_THREADS 范围内的随机值
+ * 线程数越大，随机到的概率越低 (线性衰减)
  */
-#ifndef BLAS_THREADS_MODES
-#define BLAS_THREADS_MODES {1, 8}
-#endif
+#define MAX_BLAS_THREADS 50
 
 #endif /* FUZZ_TEST_CONFIG_H */

@@ -6,16 +6,20 @@
 
 ## 运行方式
 
-### 多阶段自动测试（默认）
+### 两阶段自动测试（默认）
 
 ```bash
 # 使用默认参数运行
 fuzz_test
-# 将自动检测 CPU 核心数，并运行多个测试阶段
+# 将自动检测 CPU 核心数，并运行两个测试阶段
 
-# 自定义总迭代次数
+# 自定义总迭代次数（50% 单线程 + 50% 多线程）
 fuzz_test --iteration 5000
 ```
+
+**两阶段测试模式**：
+- **Stage 1**：50% 迭代次数，单线程（BLAS threads = 1）
+- **Stage 2**：50% 迭代次数，多线程（BLAS threads 随机 2-50，加权分布）
 
 ### 手动配置模式
 
@@ -23,7 +27,7 @@ fuzz_test --iteration 5000
 # 指定 worker 线程数和 BLAS 线程数
 fuzz_test --thread 10 --blas-threads 4 --iteration 100
 
-# 仅指定迭代次数（使用默认多阶段配置）
+# 仅指定迭代次数（使用默认两阶段配置）
 fuzz_test --iteration 100
 ```
 
@@ -37,83 +41,60 @@ fuzz_test -h
 
 | 参数 | 说明 |
 |------|------|
-| `--thread N` | 指定 worker 线程数（手动模式，跳过多阶段测试） |
+| `--thread N` | 指定 worker 线程数（手动模式，跳过两阶段测试） |
 | `--blas-threads N` | 指定每个 GEMM 调用的 BLAS 线程数（需与 --thread 配合使用） |
 | `--iteration N` | 指定总迭代次数（默认 100） |
 | `-h, --help` | 显示帮助信息 |
 
 ## 输出示例
 
-### 多阶段自动测试输出
+### 两阶段自动测试输出
 
 ```
-Starting fuzz test (multi-stage):
-  Cores (detected): 40
-  Test stages: 4
+======================================================================
+  UniGEMM Fuzz Test - Two-Stage Auto Configuration
+----------------------------------------------------------------------
+  Configuration: Workers=8 | Total Iterations=100
+======================================================================
 
-========================================
-Stage 1/4: BLAS threads = 1
-========================================
-  Workers: 40
-  BLAS threads per worker: 1
-  Total threads: 40
-  Total iterations: 100
-  Iterations per worker: 2 (last worker: 4)
+┌─ Stage 1/2 (BLAS threads=1, Single-threaded)
+  ├─ Workers: 8
+  ├─ BLAS threads/worker: 1 (total: 8 threads)
+  └─ Iterations: 50
+  └─ Completed in 413 ms
 
-========================================
-Stage 2/4: BLAS threads = 2
-========================================
-  Workers: 20
-  BLAS threads per worker: 2
-  Total threads: 40
-  Total iterations: 100
-  Iterations per worker: 5
+┌─ Stage 2/2 (BLAS threads=random 2-50, Multi-threaded)
+  ├─ Workers: 8
+  ├─ BLAS threads/worker: random 2-50 (weighted)
+  └─ Iterations: 50
+  └─ Completed in 311 ms
 
-========================================
-Stage 3/4: BLAS threads = 4
-========================================
-  Workers: 10
-  BLAS threads per worker: 4
-  Total threads: 40
-  Total iterations: 100
-  Iterations per worker: 10
-
-========================================
-Stage 4/4: BLAS threads = 8
-========================================
-  Workers: 5
-  BLAS threads per worker: 8
-  Total threads: 40
-  Total iterations: 100
-  Iterations per worker: 20
-
-========================================
-Final Results:
-  Total:   400
-  Passed:  400
-  Failed:  0
-  Error rate: 0%
-========================================
+======================================================================
+  ✓ All Success! ==================================================
+----------------------------------------------------------------------
+  Total Tests:            100  |  Time:           724 ms
+======================================================================
 ```
+
+**阶段说明**：
+- **Stage 1**：单线程测试，验证基础正确性
+- **Stage 2**：多线程测试，BLAS 线程数随机（2-50），使用加权分布（线程数越大概率越低）
 
 ### 手动配置模式输出
 
 ```
-Starting fuzz test (manual configuration):
-========================================
-  Workers: 10
-  BLAS threads per worker: 4
-  Total threads: 40
-  Total iterations: 100
-  Iterations per worker: 10
+======================================================================
+  UniGEMM Fuzz Test - Manual Configuration
+======================================================================
+  ├─ Workers: 10
+  ├─ BLAS threads/worker: 4 (total: 40 threads)
+  └─ Iterations: 100
 
-========================================
-Final Results:
-  Total:   100
-  Passed:  100
-  Failed:  0
-  Error rate: 0%
-========================================
+======================================================================
+  ✓ All Success! ==================================================
+----------------------------------------------------------------------
+  Total Tests:            100  |  Time:           542 ms
+======================================================================
 ```
 
 ### 失败输出示例
@@ -180,11 +161,15 @@ fuzz_test/
 |------|------------|
 | `order` | RowMajor / ColMajor 各 50% 概率 |
 | `transA/transB` | 4 个枚举值均匀随机分布 |
-| `m, n, k` | 10% 概率 0-64（特殊维度），40% 概率 0-128，50% 概率 0-512 |
+| `m, n, k` | 40% 概率 0-128（小维度），40% 概率 0-512（中维度），20% 概率 0-1024（大维度） |
 | `alpha, beta` | 70% 概率选择特殊值 {0,±1,±2,±0.5,±0.25}，30% 概率选择 [-10,10] 随机浮点数 |
 | `lda/ldb/ldc` | 最小值 + 0-7 的随机 padding |
+| `BLAS threads` | Stage 1 固定为 1；Stage 2 使用加权随机（2-50，线程数越大概率越低） |
 
-**注意**：BLAS 线程数不再随机，而是通过配置或自动计算确定。
+**多线程阶段加权分布**：
+- 线程数 2：权重最高（概率最大）
+- 线程数 25：中等权重
+- 线程数 50：权重最低（概率最小）
 
 ### 3. HBM 内存分配与对齐支持
 
@@ -202,16 +187,16 @@ fuzz_test/
 
 ### 4. 多线程测试模型
 
-测试采用**两层嵌套并行**架构，解决线程过度订阅问题：
+测试采用**两层嵌套并行**架构：
 
 - **外层**：`std::thread` worker 线程并发执行测试迭代
 - **内层**：OpenMP 线程在单个 GEMM 操作内部并行
 
-**多阶段自动测试**（默认模式）：
-- 自动检测 CPU 核心数
-- 对每个 BLAS 线程模式运行独立测试阶段
-- Worker 数量自动计算：`workers = MAX_CORES / blas_threads`
-- 避免线程过度订阅，确保总线程数 ≈ CPU 核心数
+**两阶段自动测试**（默认模式）：
+- 自动检测 CPU 核心数（默认 8 个 worker，可通过 `UNIGEMM_MAX_WORKERS` 覆盖）
+- **Stage 1**：单线程测试（BLAS threads = 1）
+- **Stage 2**：多线程测试（BLAS threads 随机 2-50，加权分布）
+- 每个阶段运行总迭代次数的 50%
 
 **手动配置模式**：
 - 使用 `--thread` 和 `--blas-threads` 手动指定配置
@@ -222,6 +207,7 @@ fuzz_test/
 - 内存管理：每个线程独立分配 4 个缓冲区（A、B、C_impl、C_ref）
 - 统计计数：使用原子计数器统计 total/passed/failed
 - 失败日志：使用互斥锁保护的失败日志（最多记录 20 个失败的详细信息）
+- 进度显示：实时显示 S/M/L（小/中/大矩阵）测试进度
 
 ### 5. 正确性比对
 
@@ -237,14 +223,14 @@ fuzz_test/
 
 ```cpp
 /* 维度范围定义 */
-constexpr int DIM_RANGE_SMALL = 64;      // 小维度范围
-constexpr int DIM_RANGE_MEDIUM = 128;    // 中维度范围
-constexpr int DIM_RANGE_LARGE = 512;     // 大维度范围
+constexpr int DIM_RANGE_SMALL = 128;      // 小维度范围
+constexpr int DIM_RANGE_MEDIUM = 512;     // 中维度范围
+constexpr int DIM_RANGE_LARGE = 1024;     // 大维度范围
 
 /* 维度分布概率 (总和建议为 100) */
-constexpr int DIM_PROB_SMALL = 10;       // 0-64 范围概率 (%)
-constexpr int DIM_PROB_MEDIUM = 40;      // 0-512 范围概率 (%)
-constexpr int DIM_PROB_LARGE = 50;       // 0-1024 范围概率 (%)
+constexpr int DIM_PROB_SMALL = 40;        // 0-128 范围概率 (%)
+constexpr int DIM_PROB_MEDIUM = 40;       // 0-512 范围概率 (%)
+constexpr int DIM_PROB_LARGE = 20;        // 0-1024 范围概率 (%)
 ```
 
 ### 线程配置
@@ -253,37 +239,36 @@ constexpr int DIM_PROB_LARGE = 50;       // 0-1024 范围概率 (%)
 
 ```cpp
 /* 线程配置 */
-// #define MAX_WORKERS 100           // 最大并行 worker 数（注释掉则运行时自动检测 CPU 核数）
-#define BLAS_THREADS_MODES {1, 8}       // 要测试的 BLAS 线程模式列表
+#ifdef USE_HBM
+#define MAX_WORKERS 100  // HBM 模式默认 100 worker
+#else
+#define MAX_WORKERS 8    // 非 HBM 模式默认 8 worker
+#endif
+
+/* BLAS 线程数范围配置 (用于多线程阶段) */
+#define MAX_BLAS_THREADS 50  // 多线程阶段最大 BLAS 线程数
 ```
 
 **配置说明**：
-- `MAX_WORKERS`：控制外层 `std::thread` 的数量（与 `blas_threads` 无关，不再做除法）
+- `MAX_WORKERS`：控制外层 `std::thread` 的数量
   - 不设置则运行时自动检测 CPU 核数
   - **HBM 模式**：默认 100 worker
-  - 300+ 核系统可直接使用自动检测，充分利用资源
-- `BLAS_THREADS_MODES`：定义每个 worker 内部使用的 BLAS 线程数
-  - 每个模式作为独立的测试阶段运行
-  - 每个阶段固定使用 `MAX_WORKERS` 个 worker
+  - 可通过 `UNIGEMM_MAX_WORKERS` 环境变量运行时覆盖
 
-**默认配置**：
-- `MAX_WORKERS` 自动检测：300 核系统 = 300 workers
-- `BLAS_THREADS_MODES = {1, 8}`：测试单线程和 8 线程模式
-
-**多阶段测试示例**：
-在 300 核系统上使用 `{1, 8}` 配置：
-- Stage 1: 300 workers × 1 BLAS thread（不创建 OpenMP，仅 300 std::thread）
-- Stage 2: 300 workers × 8 BLAS threads（每个 worker 内部 8 个 OpenMP 线程）
+**两阶段测试模式**（默认）：
+- **Stage 1**：单线程（BLAS threads = 1）
+- **Stage 2**：多线程（BLAS threads 随机 2-`MAX_BLAS_THREADS`，加权分布）
+  - 线程数越大，随机到的概率越低（线性衰减）
 
 修改这些常量后重新编译即可生效。
 
 ### OpenMP 环境变量配置
 
-Stage 2（blas_threads > 1）会创建大量 OpenMP 线程。如果遇到 OMP Error #34（资源不可用），可以通过环境变量限制 OpenMP 资源：
+Stage 2（多线程阶段）会创建大量 OpenMP 线程（随机 2-50）。如果遇到 OMP Error #34（资源不可用），可以通过环境变量限制 OpenMP 资源：
 
 ```bash
 # 限制 OpenMP 同时执行的最大线程数
-export OMP_THREAD_LIMIT=64
+export OMP_THREAD_LIMIT=256
 
 # 减少每线程栈大小（默认 4M）
 export OMP_STACKSIZE=2M
@@ -297,7 +282,7 @@ export KMP_BLOCKTIME=50ms
 
 完整运行示例：
 ```bash
-export OMP_THREAD_LIMIT=64 OMP_STACKSIZE=2M
+export OMP_THREAD_LIMIT=256 OMP_STACKSIZE=2M
 ./out/fuzz_test --iteration 5000
 ```
 
@@ -305,7 +290,7 @@ export OMP_THREAD_LIMIT=64 OMP_STACKSIZE=2M
 
 | 环境变量 | 作用 | 推荐值 |
 |----------|------|--------|
-| `OMP_THREAD_LIMIT` | 同时执行的最大线程数 | 64-128 |
+| `OMP_THREAD_LIMIT` | 同时执行的最大线程数 | 128-512 |
 | `OMP_STACKSIZE` | 每线程栈大小 | 2M-4M |
 | `OMP_WAIT_POLICY` | 等待策略（active/passive） | passive |
 | `KMP_BLOCKTIME` | 线程保持活跃时间 | 50ms |
@@ -326,22 +311,22 @@ UNIGEMM_MAX_WORKERS=80 ./out/fuzz_test --iteration 500
 ## 注意事项
 
 1. **线程控制**：
-   - `MAX_WORKERS` 控制外层 std::thread 数量，与 `blas_threads` 独立
-   - 默认运行时自动检测 CPU 核数，300+ 核系统可充分利用
-   - 当 `blas_threads=1` 时不创建 OpenMP 线程，只有 std::thread workers
-   - 当 `blas_threads>1` 时，总线程数 ≈ workers + (workers × blas_threads)
-   - 如果 Stage 2 触发 OMP Error #34，可通过 `OMP_THREAD_LIMIT` 限制 OpenMP 资源，或使用 `UNIGEMM_MAX_WORKERS` 减少 worker 数
+   - `MAX_WORKERS` 控制外层 std::thread 数量
+   - 默认运行时自动检测 CPU 核数，可通过 `UNIGEMM_MAX_WORKERS` 覆盖
+   - Stage 1（单线程）：只创建 std::thread workers，不创建 OpenMP 线程
+   - Stage 2（多线程）：每个测试随机创建 2-50 个 OpenMP 线程
+   - 如果 Stage 2 触发 OMP Error #34，可通过 `OMP_THREAD_LIMIT` 限制 OpenMP 资源
 
 2. **测试覆盖**：当前测试维度配置（在 `fuzz_test_config.h` 中可调）：
-   - 10% 概率：0-64（特殊边界维度）
-   - 40% 概率：0-128
-   - 50% 概率：0-512
+   - 40% 概率：0-128（小维度）
+   - 40% 概率：0-512（中维度）
+   - 20% 概率：0-1024（大维度）
    - 可通过修改 `DIM_RANGE_*` 和 `DIM_PROB_*` 常量调整
 
 3. **运行时间**：
-   - 默认配置（100 次迭代 × 2 个测试阶段 = 200 次总迭代）通常在几秒内完成
-   - 多阶段测试会运行多个配置，每个阶段运行指定的迭代次数
-   - 增加迭代次数或 BLAS 线程模式会线性增加运行时间
+   - 默认配置（100 次迭代）通常在 1 秒内完成
+   - 总迭代次数平均分配给两个阶段
+   - 增加迭代次数会线性增加运行时间
 
 4. **内存使用**：
    - 每个线程约 4MB（4 个缓冲区 × 1MB）

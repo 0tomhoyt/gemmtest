@@ -66,27 +66,35 @@ public:
         return (dist(rng_) == 0) ? CblasNoTrans : CblasTrans;
     }
 
-    /* Random number of threads for BLAS operations
-     * 分布策略:
-     *   - 40%: 1 (single-threaded)
-     *   - 30%: 2 (dual-threaded)
-     *   - 15%: 4 (quad-threaded)
-     *   - 10%: 8 (common for modern CPUs)
-     *   - 5%:  1 (default/single-threaded)
+    /* Weighted random number of threads for multi-threaded BLAS operations
+     * 范围: 2-MAX_BLAS_THREADS 线程 (配置于 fuzz_test_config.h)
+     * 分布策略: 线性衰减，线程数越大概率越低
      *
-     * DEPRECATED: Use fixed blas_threads from ThreadArg instead.
-     * This function is kept for backward compatibility but should not be used.
+     * P(thread = t) ∝ (MAX_THREAD - t + 1)
+     * 即:
+     *   - 2 threads:           权重 MAX-1 (最高)
+     *   - MAX_BLAS_THREADS/2:  权重 MAX/2
+     *   - MAX_BLAS_THREADS:    权重 1     (最低)
      */
-    [[deprecated("Use fixed blas_threads from ThreadArg instead")]]
-    int random_num_threads() {
-        std::uniform_int_distribution<int> dist_0_99(0, 99);
-        int r = dist_0_99(rng_);
+    int random_blas_threads() {
+        constexpr int MIN_THREAD = 2;
+        constexpr int MAX_THREAD = MAX_BLAS_THREADS;
+        constexpr int TOTAL_WEIGHT = (MAX_THREAD - MIN_THREAD + 1) * (MAX_THREAD - MIN_THREAD + 2) / 2;
 
-        if (r < 40) return 1;       // 40%
-        if (r < 70) return 2;       // 30%
-        if (r < 85) return 4;       // 15%
-        if (r < 95) return 8;       // 10%
-        return 1;                   // 5% (default)
+        std::uniform_int_distribution<int> dist(1, TOTAL_WEIGHT);
+        int r = dist(rng_);
+
+        /* 找到对应的线程数 */
+        int remaining = r;
+        for (int t = MIN_THREAD; t <= MAX_THREAD; t++) {
+            int weight = MAX_THREAD - t + 1;
+            if (remaining <= weight) {
+                return t;
+            }
+            remaining -= weight;
+        }
+
+        return MAX_THREAD;  /* Fallback */
     }
 
     /* Generic random integer in range [min, max] */

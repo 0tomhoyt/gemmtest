@@ -27,8 +27,14 @@ void thread_worker(ThreadArg* targ) {
         float alpha = rng.random_alpha_beta();
         float beta = rng.random_alpha_beta();
 
-        /* Use fixed BLAS thread count for this worker */
+        /* Determine BLAS thread count
+         * If blas_threads == 0, use random value (2-50, weighted)
+         * Otherwise use the fixed value from ThreadArg
+         */
         int num_threads = targ->blas_threads;
+        if (num_threads == 0) {
+            num_threads = rng.random_blas_threads();
+        }
 
         /* Calculate minimum leading dimensions */
         BLASINT min_lda, min_ldb, min_ldc;

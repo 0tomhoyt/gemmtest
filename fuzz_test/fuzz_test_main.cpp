@@ -77,7 +77,11 @@ static int run_test_stage(int num_threads, int blas_threads, int total_iteration
     int remainder = total_iterations % num_threads;
 
     std::cout << "  ├─ Workers: " << num_threads << "\n";
-    std::cout << "  ├─ BLAS threads/worker: " << blas_threads << " (total: " << (num_threads * blas_threads) << " threads)\n";
+    if (blas_threads == 0) {
+        std::cout << "  ├─ BLAS threads/worker: random 2-" << MAX_BLAS_THREADS << " (weighted)\n";
+    } else {
+        std::cout << "  ├─ BLAS threads/worker: " << blas_threads << " (total: " << (num_threads * blas_threads) << " threads)\n";
+    }
     std::cout << "  └─ Iterations: " << total_iterations << "\n";
 
     /* Start progress bar */
@@ -138,12 +142,6 @@ int main(int argc, char *argv[]) {
 #endif
     if (max_workers < 1) max_workers = 4;  /* 回退值 */
 
-    /* BLAS线程模式配置 */
-#ifndef BLAS_THREADS_MODES
-#define BLAS_THREADS_MODES {1, 8}
-#endif
-    std::vector<int> blas_threads_modes = BLAS_THREADS_MODES;
-
     /* 手动配置标志 */
     bool manual_config = false;
     int manual_blas_threads = -1;
@@ -162,11 +160,12 @@ int main(int argc, char *argv[]) {
             manual_config = true;  /* 手动配置时跳过多阶段测试 */
             i++;
         } else if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0) {
-            std::cout << "Usage: " << argv[0] << " [--thread <threads>] [--blas-threads <threads>] [--iteration <total_iterations>]\n";
+            std::cout << "Usage: " << argv[0] << " [--thread <threads>] [--iteration <total_iterations>]\n";
             std::cout << "  --thread <threads>       Number of worker threads (default: auto-calculated)\n";
-            std::cout << "  --blas-threads <threads> BLAS threads per worker (default: auto-calculated)\n";
             std::cout << "  --iteration <total>      Total iterations across all threads (default: 100)\n";
-            std::cout << "\nNote: Without --thread, runs multi-stage test with BLAS_THREADS_MODES from config.\n";
+            std::cout << "\nNote: Without --thread, runs two-stage test:\n";
+            std::cout << "  Stage 1: 50%% iterations with BLAS=1 (single-threaded)\n";
+            std::cout << "  Stage 2: 50%% iterations with BLAS=random (2-50, weighted)\n";
             return 0;
         }
     }
@@ -193,35 +192,44 @@ int main(int argc, char *argv[]) {
             return 1;
         }
     } else {
-        /* 多阶段测试：自动配置 */
+        /* 多阶段测试：自动配置 (固定两阶段) */
+        /* 计算每个阶段的迭代次数 */
+        int iters_per_stage = total_iterations / 2;
+        int remainder = total_iterations % 2;
+
         std::cout << "\n" << std::string(70, '=') << "\n";
-        std::cout << "  UniGEMM Fuzz Test - Multi-Stage Auto Configuration\n";
+        std::cout << "  UniGEMM Fuzz Test - Two-Stage Auto Configuration\n";
         std::cout << std::string(70, '-') << "\n";
-        std::cout << "  Configuration: Workers=" << max_workers << " | Stages=" << blas_threads_modes.size() << " (BLAS: [";
-        for (size_t i = 0; i < blas_threads_modes.size(); i++) {
-            std::cout << blas_threads_modes[i];
-            if (i < blas_threads_modes.size() - 1) std::cout << ",";
-        }
-        std::cout << "])\n";
+        std::cout << "  Configuration: Workers=" << max_workers << " | Total Iterations=" << total_iterations << "\n";
         std::cout << std::string(70, '=') << "\n\n";
 
-        int stage = 1;
-        for (int blas_threads : blas_threads_modes) {
-            int workers = max_workers;
-            if (workers < 1) workers = 1;
-
+        /* Stage 1: 单线程 (BLAS=1) */
+        int stage1_iters = iters_per_stage + remainder;  /* 余数给第一阶段 */
+        {
             auto stage_start = std::chrono::steady_clock::now();
 
-            std::cout << "┌─ Stage " << stage << "/" << blas_threads_modes.size() << " (BLAS threads=" << blas_threads << ")\n";
-            if (run_test_stage(workers, blas_threads, total_iterations, seed) != 0) {
+            std::cout << "┌─ Stage 1/2 (BLAS threads=1, Single-threaded)\n";
+            if (run_test_stage(max_workers, 1, stage1_iters, seed) != 0) {
                 return 1;
             }
 
             auto stage_end = std::chrono::steady_clock::now();
             auto stage_duration = std::chrono::duration_cast<std::chrono::milliseconds>(stage_end - stage_start);
             std::cout << "  └─ Completed in " << stage_duration.count() << " ms\n\n";
+        }
 
-            stage++;
+        /* Stage 2: 多线程 (BLAS 随机 2-50) */
+        {
+            auto stage_start = std::chrono::steady_clock::now();
+
+            std::cout << "┌─ Stage 2/2 (BLAS threads=random 2-50, Multi-threaded)\n";
+            if (run_test_stage(max_workers, 0, iters_per_stage, seed) != 0) {
+                return 1;
+            }
+
+            auto stage_end = std::chrono::steady_clock::now();
+            auto stage_duration = std::chrono::duration_cast<std::chrono::milliseconds>(stage_end - stage_start);
+            std::cout << "  └─ Completed in " << stage_duration.count() << " ms\n\n";
         }
     }
 

@@ -153,9 +153,10 @@ bool ThreadBuffers::allocate(BLASINT max_dim, BLASINT max_ld) {
 
 - **布局**：RowMajor / ColMajor（各 50%）
 - **转置**：4 个枚举值均匀分布
-- **维度**：10% 小维度 + 40% 中维度 + 50% 大维度
+- **维度**：40% 小维度（0-128）+ 40% 中维度（0-512）+ 20% 大维度（0-1024）
 - **标量系数**：70% 特殊值 + 30% 随机值
 - **LDA**：最小值 + 随机 padding
+- **BLAS 线程**：Stage 1 固定为 1；Stage 2 加权随机（2-50，线程数越大概率越低）
 
 ### 正确性验证
 
@@ -205,9 +206,10 @@ cd fuzz_test && ./build.sh --run
 cd fuzz_test && mkdir build && cd build
 cmake -DUSE_HBM=ON .. && cmake --build .
 
-# 2. 自动多阶段测试（推荐）
+# 2. 两阶段自动测试（推荐）
 ./out/fuzz_test --iteration 50000
-# 将自动检测 CPU 核心数并运行多个测试阶段
+# Stage 1: 50% 迭代，单线程（BLAS=1）
+# Stage 2: 50% 迭代，多线程（BLAS 随机 2-50，加权分布）
 
 # 3. 手动配置特定测试
 ./out/fuzz_test --thread 16 --blas-threads 4 --iteration 50000
