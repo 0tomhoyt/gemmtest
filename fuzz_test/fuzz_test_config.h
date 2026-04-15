@@ -6,14 +6,14 @@
  * ============================================================ */
 
 /* 维度范围定义 */
-constexpr int DIM_RANGE_SMALL = 64;      // 小维度范围
-constexpr int DIM_RANGE_MEDIUM = 128;    // 中维度范围
-constexpr int DIM_RANGE_LARGE = 512;     // 大维度范围
+constexpr int DIM_RANGE_SMALL = 128;      // 小维度范围
+constexpr int DIM_RANGE_MEDIUM = 512;    // 中维度范围
+constexpr int DIM_RANGE_LARGE = 1024;     // 大维度范围
 
 /* 维度分布概率 (总和建议为 100) */
-constexpr int DIM_PROB_SMALL = 10;       // 0-64 范围概率 (%)
+constexpr int DIM_PROB_SMALL = 40;       // 0-128 范围概率 (%)
 constexpr int DIM_PROB_MEDIUM = 40;      // 0-512 范围概率 (%)
-constexpr int DIM_PROB_LARGE = 50;       // 0-1024 范围概率 (%)
+constexpr int DIM_PROB_LARGE = 20;       // 0-1024 范围概率 (%)
 
 /* 计算最大需要的内存 (加上 padding) */
 constexpr int MAX_DIM = DIM_RANGE_LARGE;
@@ -35,7 +35,7 @@ constexpr int BUFFER_ALIGNMENT = 64;
 #ifdef USE_HBM
 #define MAX_WORKERS 100  /* HBM 模式默认 100 worker */
 #else
-// #define MAX_WORKERS 100  /* 非 HBM 模式，取消注释以手动指定 */
+#define MAX_WORKERS 8  /* 非 HBM 模式，取消注释以手动指定 */
 #endif
 
 /* 要测试的BLAS线程模式列表 (每个 worker 内部的 BLAS 线程数)
