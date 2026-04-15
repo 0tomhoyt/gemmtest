@@ -6,12 +6,61 @@
 #include <cstring>
 #include <cstdlib>
 #include <array>
+#include <atomic>
+#include <mutex>
 
 #include "gemm_benchmark.h"
 #include "unigemm_920f.h"
 #include "fuzz_test_config.h"
 #include "fuzz_test_worker.h"
 #include "fuzz_test_report.cpp"
+
+/* Progress bar state */
+static std::atomic<bool> progress_running{false};
+static std::thread progress_thread;
+static int progress_target = 0;
+
+/* Progress bar display function */
+static void progress_bar_func() {
+    const int bar_width = 40;
+    while (progress_running.load()) {
+        int current = completed_tests.load(std::memory_order_relaxed);
+        if (progress_target > 0) {
+            float ratio = static_cast<float>(current) / progress_target;
+            if (ratio > 1.0f) ratio = 1.0f;
+
+            int filled = static_cast<int>(ratio * bar_width);
+
+            std::cout << "\r  [";
+            for (int i = 0; i < bar_width; i++) {
+                if (i < filled) std::cout << "=";
+                else if (i == filled) std::cout << ">";
+                else std::cout << " ";
+            }
+            std::cout << "] " << std::setw(3) << static_cast<int>(ratio * 100) << "% ("
+                      << std::setw(4) << current << "/" << progress_target << ")" << std::flush;
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    }
+}
+
+/* Start progress bar */
+static void start_progress(int target) {
+    progress_target = target;
+    completed_tests.store(0, std::memory_order_relaxed);
+    progress_running.store(true);
+    progress_thread = std::thread(progress_bar_func);
+}
+
+/* Stop progress bar */
+static void stop_progress() {
+    progress_running.store(false);
+    if (progress_thread.joinable()) {
+        progress_thread.join();
+    }
+    /* Clear the progress bar line */
+    std::cout << "\r" << std::string(80, ' ') << "\r" << std::flush;
+}
 
 /* 运行单阶段测试 */
 static int run_test_stage(int num_threads, int blas_threads, int total_iterations, unsigned int base_seed) {
@@ -23,6 +72,9 @@ static int run_test_stage(int num_threads, int blas_threads, int total_iteration
     std::cout << "  ├─ BLAS threads/worker: " << blas_threads << " (total: " << (num_threads * blas_threads) << " threads)\n";
     std::cout << "  └─ Iterations: " << total_iterations << "\n";
 
+    /* Start progress bar */
+    start_progress(total_iterations);
+
     /* Initialize thread data */
     std::vector<ThreadArg> targs(num_threads);
     std::vector<std::thread> threads;
@@ -33,12 +85,13 @@ static int run_test_stage(int num_threads, int blas_threads, int total_iteration
         /* First 'remainder' workers get one extra iteration */
         targs[i].iterations = iterations_per_worker + (i < remainder ? 1 : 0);
         targs[i].rand_seed = base_seed + i * 7919;  /* Use prime number for better distribution */
-        targs[i].blas_threads = blas_threads;  /* Fixed BLAS thread count for this stage */
+        targs[i].blas_threads = blas_threads;  /* Fixed BLAS thread count for this worker */
 
         /* Allocate buffers for this thread */
         targs[i].buffers = alloc_thread_buffers(MAX_DIM, MAX_LD);
         if (!targs[i].buffers) {
             std::cerr << "Error: Failed to allocate buffers for thread " << i << "\n";
+            stop_progress();
             return 1;
         }
 
@@ -49,6 +102,9 @@ static int run_test_stage(int num_threads, int blas_threads, int total_iteration
     for (auto& t : threads) {
         t.join();
     }
+
+    /* Stop progress bar */
+    stop_progress();
 
     return 0;
 }
@@ -171,7 +227,8 @@ int main(int argc, char *argv[]) {
 
     /* Print failures first (if any) */
     if (failed > 0) {
-        std::cout << "\n[ Failure Details (first " << failure_count << ") ]\n";
+        std::cout << "\n" << std::string(70, '=') << "\n";
+        std::cout << "  Failure Details (first " << failure_count << ")\n";
         std::cout << std::string(70, '-') << "\n";
         for (int i = 0; i < failure_count; i++) {
             print_failure(failures[i]);
@@ -181,12 +238,22 @@ int main(int argc, char *argv[]) {
 
     /* Print results last */
     std::cout << "\n" << std::string(70, '=') << "\n";
-    std::cout << "  Final Results\n";
-    std::cout << std::string(70, '-') << "\n";
-    std::cout << "  Total Tests:    " << std::setw(10) << total << "  |  Passed:  " << std::setw(10) << passed << "  |  Failed:  " << std::setw(10) << failed << "\n";
-    std::cout << std::setprecision(4);
-    std::cout << "  Error Rate:     " << std::setw(9) << (total > 0 ? (100.0 * failed / total) : 0.0) << "%  |  Time:    " << std::setw(10) << total_duration.count() << " ms\n";
-    std::cout << std::string(70, '=') << "\n";
+
+    if (failed == 0) {
+        /* All tests passed - show success message */
+        std::cout << "  ✓ All Success! " << std::string(50, '=') << "\n";
+        std::cout << std::string(70, '-') << "\n";
+        std::cout << "  Total Tests:     " << std::setw(10) << total << "  |  Time:    " << std::setw(10) << total_duration.count() << " ms\n";
+        std::cout << std::string(70, '=') << "\n";
+    } else {
+        /* Some tests failed - show detailed stats */
+        std::cout << "  Final Results\n";
+        std::cout << std::string(70, '-') << "\n";
+        std::cout << "  Total Tests:    " << std::setw(10) << total << "  |  Passed:  " << std::setw(10) << passed << "  |  Failed:  " << std::setw(10) << failed << "\n";
+        std::cout << std::setprecision(4);
+        std::cout << "  Error Rate:     " << std::setw(9) << (total > 0 ? (100.0 * failed / total) : 0.0) << "%  |  Time:    " << std::setw(10) << total_duration.count() << " ms\n";
+        std::cout << std::string(70, '=') << "\n";
+    }
 
     return (failed > 0) ? 1 : 0;
 }

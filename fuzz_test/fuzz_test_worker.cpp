@@ -126,6 +126,7 @@ void thread_worker(ThreadArg* targ) {
                                        1e-2f, &fail_info);
 
         total_tests.fetch_add(1, std::memory_order_relaxed);
+        completed_tests.fetch_add(1, std::memory_order_relaxed);
 
         if (passed) {
             passed_tests.fetch_add(1, std::memory_order_relaxed);

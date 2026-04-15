@@ -5,6 +5,7 @@
 std::atomic<int> total_tests{0};
 std::atomic<int> passed_tests{0};
 std::atomic<int> failed_tests{0};
+std::atomic<int> completed_tests{0};  /* For progress tracking */
 
 /* Mutex for failure log */
 std::mutex fail_mutex;
