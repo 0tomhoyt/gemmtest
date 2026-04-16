@@ -199,10 +199,11 @@ int main(int argc, char *argv[]) {
         }
     } else {
         /* 六阶段测试：3 维度 × 2 BLAS 线程模式 */
-        /* 迭代分配：small 40%, medium 40%, large 20% */
-        int small_total  = total_iterations * 40 / 100;
-        int medium_total = total_iterations * 40 / 100;
-        int large_total  = total_iterations * 20 / 100;
+        /* 迭代分配比例来自 fuzz_test_config.h */
+        constexpr int DIM_PROB_TOTAL = DIM_PROB_SMALL + DIM_PROB_MEDIUM + DIM_PROB_LARGE;
+        int small_total  = total_iterations * DIM_PROB_SMALL  / DIM_PROB_TOTAL;
+        int medium_total = total_iterations * DIM_PROB_MEDIUM / DIM_PROB_TOTAL;
+        int large_total  = total_iterations * DIM_PROB_LARGE  / DIM_PROB_TOTAL;
         int remainder = total_iterations - small_total - medium_total - large_total;
         small_total += remainder;  /* 余数给 small 阶段 */
 
@@ -230,12 +231,12 @@ int main(int argc, char *argv[]) {
         };
 
         StageConfig stages[] = {
-            {1, "Small (1-128)",   128,  1, small_single},
-            {2, "Small (1-128)",   128,  0, small_multi},
-            {3, "Medium (1-512)",  512,  1, medium_single},
-            {4, "Medium (1-512)",  512,  0, medium_multi},
-            {5, "Large (1-1024)",  1024, 1, large_single},
-            {6, "Large (1-1024)",  1024, 0, large_multi},
+            {1, "Small",   DIM_RANGE_SMALL,  1, small_single},
+            {2, "Small",   DIM_RANGE_SMALL,  0, small_multi},
+            {3, "Medium",  DIM_RANGE_MEDIUM, 1, medium_single},
+            {4, "Medium",  DIM_RANGE_MEDIUM, 0, medium_multi},
+            {5, "Large",   DIM_RANGE_LARGE,  1, large_single},
+            {6, "Large",   DIM_RANGE_LARGE,  0, large_multi},
         };
 
         for (const auto& s : stages) {
