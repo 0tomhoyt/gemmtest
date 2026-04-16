@@ -8,24 +8,8 @@
  * Uses helper functions for index calculation instead of inline branches.
  */
 
-/* Return effective rows of matrix after transpose */
-static BLASINT effective_rows(BLASINT rows, BLASINT cols,
-                               enum CBLAS_TRANSPOSE trans) {
-    if (trans == CblasNoTrans || trans == CblasConjNoTrans)
-        return rows;
-    return cols;
-}
-
-/* Return effective cols of matrix after transpose */
-static BLASINT effective_cols(BLASINT rows, BLASINT cols,
-                               enum CBLAS_TRANSPOSE trans) {
-    if (trans == CblasNoTrans || trans == CblasConjNoTrans)
-        return cols;
-    return rows;
-}
-
 /* Get element from matrix A with transpose/layout handling */
-static float get_a_elem(const float *a, BLASINT m, BLASINT n, BLASINT lda,
+static float get_a_elem(const float *a, BLASINT lda,
                         enum CBLAS_ORDER order, enum CBLAS_TRANSPOSE trans,
                         BLASINT i, BLASINT j) {
     BLASINT row, col;
@@ -45,7 +29,7 @@ static float get_a_elem(const float *a, BLASINT m, BLASINT n, BLASINT lda,
 }
 
 /* Get element from matrix B with transpose/layout handling */
-static float get_b_elem(const float *b, BLASINT m, BLASINT n, BLASINT ldb,
+static float get_b_elem(const float *b, BLASINT ldb,
                         enum CBLAS_ORDER order, enum CBLAS_TRANSPOSE trans,
                         BLASINT i, BLASINT j) {
     BLASINT row, col;
@@ -89,20 +73,13 @@ void cblas_sgemm_ref(const enum CBLAS_ORDER order, const enum CBLAS_TRANSPOSE tr
                      const float *b, const BLASINT ldb, const float beta, float *c,
                      const BLASINT ldc) {
 
-    BLASINT a_eff_rows = effective_rows(m, k, transA);
-    BLASINT a_eff_cols = effective_cols(m, k, transA);
-    BLASINT b_eff_rows = effective_rows(k, n, transB);
-    BLASINT b_eff_cols = effective_cols(k, n, transB);
-
     for (BLASINT i = 0; i < m; i++) {
         for (BLASINT j = 0; j < n; j++) {
             /* Compute dot product of row i of op(A) and column j of op(B) */
             float sum = 0.0f;
             for (BLASINT p = 0; p < k; p++) {
-                float a_val = get_a_elem(a, a_eff_rows, a_eff_cols, lda,
-                                         order, transA, i, p);
-                float b_val = get_b_elem(b, b_eff_rows, b_eff_cols, ldb,
-                                         order, transB, p, j);
+                float a_val = get_a_elem(a, lda, order, transA, i, p);
+                float b_val = get_b_elem(b, ldb, order, transB, p, j);
                 sum += a_val * b_val;
             }
 

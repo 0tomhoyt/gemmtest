@@ -32,9 +32,9 @@ constexpr int BUFFER_ALIGNMENT = 64;
  * 每个测试阶段的 std::thread 数量 = MAX_WORKERS
  */
 #ifdef USE_HBM
-#define MAX_WORKERS 100  /* HBM 模式默认 100 worker */
+#define MAX_WORKERS 32  /* HBM 模式默认 32 worker */
 #else
-#define MAX_WORKERS 8  /* 非 HBM 模式，取消注释以手动指定 */
+#define MAX_WORKERS 8  /* 非 HBM 模式，8 worker */
 #endif
 
 /* BLAS 线程数范围配置 (用于多线程阶段)
