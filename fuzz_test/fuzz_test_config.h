@@ -15,6 +15,10 @@ constexpr int DIM_PROB_SMALL = 40;       // 0-128 范围概率 (%)
 constexpr int DIM_PROB_MEDIUM = 40;      // 0-512 范围概率 (%)
 constexpr int DIM_PROB_LARGE = 20;       // 0-1024 范围概率 (%)
 
+/* 编译时检查：确保概率总和为100 */
+static_assert(DIM_PROB_SMALL + DIM_PROB_MEDIUM + DIM_PROB_LARGE == 100,
+              "DIM_PROB_SMALL + DIM_PROB_MEDIUM + DIM_PROB_LARGE must equal 100");
+
 /* 计算最大需要的内存 (加上 padding) */
 constexpr int MAX_DIM = DIM_RANGE_LARGE;
 constexpr int MAX_LD = DIM_RANGE_LARGE + 7;  // 最大维度 + 最大 padding
