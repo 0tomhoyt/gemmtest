@@ -109,6 +109,10 @@ static int run_test_stage(int num_threads, int blas_threads, int dim_range,
         if (!targs[i].buffers) {
             std::cerr << "Error: Failed to allocate buffers for thread " << i << "\n";
             stop_progress();
+            /* 清理已创建的线程再返回 */
+            for (auto& t : threads) {
+                t.join();
+            }
             return 1;
         }
 
