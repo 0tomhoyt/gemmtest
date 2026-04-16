@@ -110,9 +110,6 @@ void thread_worker(ThreadArg* targ) {
         cblas_sgemm(order, transA, transB, m, n, k, alpha, a_buf, lda,
                     b_buf, ldb, beta, c_impl_buf, ldc);
 
-        /* Set number of threads for reference (same as implementation) */
-        BlasSetNumThreadsLocal(num_threads);
-
         /* Run reference */
         cblas_sgemm_ref(order, transA, transB, m, n, k, alpha, a_buf, lda,
                         b_buf, ldb, beta, c_ref_buf, ldc);
