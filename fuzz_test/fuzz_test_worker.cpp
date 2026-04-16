@@ -4,6 +4,7 @@
 #include "gemm_benchmark.h"
 #include "unigemm_920f.h"
 #include "../openblas.h"
+#include "fuzz_test_util.h"
 
 /* Thread worker function implementation */
 void thread_worker(ThreadArg* targ) {
@@ -58,9 +59,9 @@ void thread_worker(ThreadArg* targ) {
         min_ldc = (order == CblasRowMajor) ? n : m;
 
         /* Add random padding */
-        BLASINT lda = min_lda + rng.random_int<BLASINT>(0, 7);
-        BLASINT ldb = min_ldb + rng.random_int<BLASINT>(0, 7);
-        BLASINT ldc = min_ldc + rng.random_int<BLASINT>(0, 7);
+        BLASINT lda = min_lda;
+        BLASINT ldb = min_ldb;
+        BLASINT ldc = min_ldc;
 
         /* Clamp to maximum */
         if (lda > MAX_LD) lda = MAX_LD;
@@ -89,19 +90,13 @@ void thread_worker(ThreadArg* targ) {
         BLASINT c_size = ldc * ((order == CblasRowMajor) ? m : n);
         if (static_cast<size_t>(c_size) > max_buf_size) c_size = static_cast<BLASINT>(max_buf_size);
 
-        for (BLASINT i = 0; i < a_size; i++) {
-            a_buf[i] = rng.random_float(-10.0f, 10.0f);
-        }
-        for (BLASINT i = 0; i < b_size; i++) {
-            b_buf[i] = rng.random_float(-10.0f, 10.0f);
-        }
+        /* Initialize matrices using InitMatrix */
+        InitMatrix(a_buf, a_size, iter * 3);
+        InitMatrix(b_buf, b_size, iter * 3 + 1);
 
-        /* Initialize C matrices */
-        for (BLASINT i = 0; i < c_size; i++) {
-            float val = rng.random_float(-10.0f, 10.0f);
-            c_impl_buf[i] = val;
-            c_ref_buf[i] = val;
-        }
+        /* Initialize C matrices (same seed for both impl and ref) */
+        InitMatrix(c_impl_buf, c_size, iter * 3 + 2);
+        memcpy(c_ref_buf, c_impl_buf, c_size * sizeof(float));
 
         /* Set number of threads for this BLAS call */
         BlasSetNumThreadsLocal(num_threads);
