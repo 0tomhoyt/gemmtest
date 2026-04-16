@@ -32,7 +32,8 @@ struct ThreadArg {
     int thread_id;
     int iterations;
     unsigned int rand_seed;
-    int blas_threads = 1;  /* Fixed BLAS thread count for this worker */
+    int blas_threads = 1;   /* Fixed BLAS thread count for this worker */
+    int dim_range = 0;       /* 0=随机类别, 128/512/1024=固定维度范围 */
     std::unique_ptr<ThreadBuffers> buffers;
 };
 

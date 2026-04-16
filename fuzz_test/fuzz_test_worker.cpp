@@ -22,7 +22,11 @@ void thread_worker(ThreadArg* targ) {
 
         /* Generate three dimensions with controlled category distribution */
         BLASINT m, n, k;
-        rng.random_three_dims(m, n, k);
+        if (targ->dim_range > 0) {
+            rng.random_three_dims_fixed(m, n, k, targ->dim_range);
+        } else {
+            rng.random_three_dims(m, n, k);
+        }
 
         float alpha = rng.random_alpha_beta();
         float beta = rng.random_alpha_beta();

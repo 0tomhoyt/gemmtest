@@ -131,6 +131,14 @@ public:
         return MAX_THREAD;  /* Fallback */
     }
 
+    /* Generate three dimensions with fixed range (all in [1, range]) */
+    void random_three_dims_fixed(BLASINT& m, BLASINT& n, BLASINT& k, int range) {
+        std::uniform_int_distribution<BLASINT> dist(1, range);
+        m = dist(rng_);
+        n = dist(rng_);
+        k = dist(rng_);
+    }
+
     /* Generic random integer in range [min, max] */
     template<typename T>
     T random_int(T min, T max) {
