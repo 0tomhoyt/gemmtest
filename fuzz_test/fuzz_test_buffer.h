@@ -7,11 +7,13 @@
 #include <cstdlib>
 #include <memory>
 #include <cassert>
+#include <variant>
 
 #ifdef USE_HBM
 #include "test_util.h"
 #endif
 
+/* 原有的 ThreadBuffers 保持不变，用于向后兼容 */
 /* Buffer for matrix data (allocated per thread with 64-byte alignment) */
 struct ThreadBuffers {
     float* a_buf;

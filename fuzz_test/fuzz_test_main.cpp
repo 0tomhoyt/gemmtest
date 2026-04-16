@@ -72,7 +72,8 @@ static void stop_progress() {
 
 /* 运行单阶段测试 */
 static int run_test_stage(int num_threads, int blas_threads, int dim_range,
-                          int total_iterations, unsigned int base_seed) {
+                          int total_iterations, unsigned int base_seed,
+                          PrecisionType precision = PrecisionType::SGEMM) {
     /* Calculate iterations per thread - distribute remainder to first workers */
     int iterations_per_worker = total_iterations / num_threads;
     int remainder = total_iterations % num_threads;
@@ -82,9 +83,9 @@ static int run_test_stage(int num_threads, int blas_threads, int dim_range,
         std::cout << "  ├─ Dim range: 1-" << dim_range << "\n";
     }
     if (blas_threads == 0) {
-        std::cout << "  ├─ BLAS threads/worker: random 2-" << MAX_BLAS_THREADS << " (weighted)\n";
+        std::cout << "  ├─ Threads/worker: random 2-" << MAX_BLAS_THREADS << " (weighted)\n";
     } else {
-        std::cout << "  ├─ BLAS threads/worker: " << blas_threads << " (total: " << (num_threads * blas_threads) << " threads)\n";
+        std::cout << "  ├─ Threads/worker: " << blas_threads << " (total: " << (num_threads * blas_threads) << ")\n";
     }
     std::cout << "  └─ Iterations: " << total_iterations << "\n";
 
@@ -103,6 +104,7 @@ static int run_test_stage(int num_threads, int blas_threads, int dim_range,
         targs[i].rand_seed = base_seed + i * 7919;  /* Use prime number for better distribution */
         targs[i].blas_threads = blas_threads;  /* Fixed BLAS thread count for this worker */
         targs[i].dim_range = dim_range;         /* Fixed dimension range for this stage */
+        targs[i].precision = precision;         /* Precision type for this stage */
 
         /* Allocate buffers for this thread */
         targs[i].buffers = alloc_thread_buffers(MAX_DIM, MAX_LD);
@@ -172,10 +174,10 @@ int main(int argc, char *argv[]) {
             std::cout << "Usage: " << argv[0] << " [--thread <threads>] [--iteration <total_iterations>]\n";
             std::cout << "  --thread <threads>       Number of worker threads (default: auto-calculated)\n";
             std::cout << "  --iteration <total>      Total iterations across all threads (default: 100)\n";
-            std::cout << "\nNote: Without --thread, runs six-stage test (3 dims x 2 BLAS modes):\n";
-            std::cout << "  Small (1-128):   40%% of iterations, split single/multi BLAS\n";
-            std::cout << "  Medium (1-512):  40%% of iterations, split single/multi BLAS\n";
-            std::cout << "  Large (1-1024):  20%% of iterations, split single/multi BLAS\n";
+            std::cout << "\nNote: Without --thread, runs eighteen-stage test (3 precisions x 3 dims x 2 BLAS modes):\n";
+            std::cout << "  SGEMM:  Small (1-128), Medium (1-512), Large (1-1024)\n";
+            std::cout << "  SHGEMM: Small (1-128), Medium (1-512), Large (1-1024)\n";
+            std::cout << "  SBGEMM: Small (1-128), Medium (1-512), Large (1-1024)\n";
             return 0;
         }
     }
@@ -202,45 +204,99 @@ int main(int argc, char *argv[]) {
             return 1;
         }
     } else {
-        /* 六阶段测试：3 维度 × 2 BLAS 线程模式 */
+        /* 十八阶段测试：3 精度 × 3 维度 × 2 BLAS 线程模式 */
         /* 迭代分配比例来自 fuzz_test_config.h */
         constexpr int DIM_PROB_TOTAL = DIM_PROB_SMALL + DIM_PROB_MEDIUM + DIM_PROB_LARGE;
-        int small_total  = total_iterations * DIM_PROB_SMALL  / DIM_PROB_TOTAL;
-        int medium_total = total_iterations * DIM_PROB_MEDIUM / DIM_PROB_TOTAL;
-        int large_total  = total_iterations * DIM_PROB_LARGE  / DIM_PROB_TOTAL;
-        int remainder = total_iterations - small_total - medium_total - large_total;
-        small_total += remainder;  /* 余数给 small 阶段 */
 
-        /* 每种维度内 single/multi 各半 */
-        int small_single  = small_total / 2;
-        int small_multi   = small_total - small_single;
-        int medium_single = medium_total / 2;
-        int medium_multi  = medium_total - medium_single;
-        int large_single  = large_total / 2;
-        int large_multi   = large_total - large_single;
+        /* 每种精度各运行 total_iterations 次 */
+        int sgemm_total = total_iterations;
+        int shgemm_total = total_iterations;
+        int sbgemm_total = total_iterations;
+
+        /* 辅助 lambda：按维度概率分配 */
+        auto alloc_dims = [&](int total, int& small, int& medium, int& large) {
+            small  = total * DIM_PROB_SMALL  / DIM_PROB_TOTAL;
+            medium = total * DIM_PROB_MEDIUM / DIM_PROB_TOTAL;
+            large  = total - small - medium;
+        };
+
+        int sgemm_small, sgemm_medium, sgemm_large;
+        alloc_dims(sgemm_total, sgemm_small, sgemm_medium, sgemm_large);
+
+        int shgemm_small, shgemm_medium, shgemm_large;
+        alloc_dims(shgemm_total, shgemm_small, shgemm_medium, shgemm_large);
+
+        int sbgemm_small, sbgemm_medium, sbgemm_large;
+        alloc_dims(sbgemm_total, sbgemm_small, sbgemm_medium, sbgemm_large);
+
+        /* 辅助 lambda：single/multi 各半 */
+        auto split_half = [](int total, int& single, int& multi) {
+            single = total / 2;
+            multi  = total - single;
+        };
+
+        int sgemm_small_single, sgemm_small_multi;
+        int sgemm_medium_single, sgemm_medium_multi;
+        int sgemm_large_single, sgemm_large_multi;
+        split_half(sgemm_small, sgemm_small_single, sgemm_small_multi);
+        split_half(sgemm_medium, sgemm_medium_single, sgemm_medium_multi);
+        split_half(sgemm_large, sgemm_large_single, sgemm_large_multi);
+
+        int shgemm_small_single, shgemm_small_multi;
+        int shgemm_medium_single, shgemm_medium_multi;
+        int shgemm_large_single, shgemm_large_multi;
+        split_half(shgemm_small, shgemm_small_single, shgemm_small_multi);
+        split_half(shgemm_medium, shgemm_medium_single, shgemm_medium_multi);
+        split_half(shgemm_large, shgemm_large_single, shgemm_large_multi);
+
+        int sbgemm_small_single, sbgemm_small_multi;
+        int sbgemm_medium_single, sbgemm_medium_multi;
+        int sbgemm_large_single, sbgemm_large_multi;
+        split_half(sbgemm_small, sbgemm_small_single, sbgemm_small_multi);
+        split_half(sbgemm_medium, sbgemm_medium_single, sbgemm_medium_multi);
+        split_half(sbgemm_large, sbgemm_large_single, sbgemm_large_multi);
 
         std::cout << "\n" << std::string(70, '=') << "\n";
-        std::cout << "  UniGEMM Fuzz Test - Six-Stage Auto Configuration\n";
+        std::cout << "  UniGEMM Fuzz Test - Eighteen-Stage Auto Configuration\n";
         std::cout << std::string(70, '-') << "\n";
-        std::cout << "  Workers=" << max_workers << " | Total Iterations=" << total_iterations << "\n";
-        std::cout << "  Small: " << small_total << " | Medium: " << medium_total << " | Large: " << large_total << "\n";
+        std::cout << "  Workers=" << max_workers << " | Iterations/precision=" << total_iterations << " | Total=" << (total_iterations * 3) << "\n";
+        std::cout << "  SGEMM:  Small=" << sgemm_small << " Medium=" << sgemm_medium << " Large=" << sgemm_large << "\n";
+        std::cout << "  SHGEMM: Small=" << shgemm_small << " Medium=" << shgemm_medium << " Large=" << shgemm_large << "\n";
+        std::cout << "  SBGEMM: Small=" << sbgemm_small << " Medium=" << sbgemm_medium << " Large=" << sbgemm_large << "\n";
         std::cout << std::string(70, '=') << "\n\n";
 
         struct StageConfig {
             int stage_num;
             const char* dim_label;
+            const char* precision_label;
             int dim_range;
             int blas_threads;  /* 1=single, 0=multi */
             int iters;
+            PrecisionType precision;
         };
 
         StageConfig stages[] = {
-            {1, "Small",   DIM_RANGE_SMALL,  1, small_single},
-            {2, "Small",   DIM_RANGE_SMALL,  0, small_multi},
-            {3, "Medium",  DIM_RANGE_MEDIUM, 1, medium_single},
-            {4, "Medium",  DIM_RANGE_MEDIUM, 0, medium_multi},
-            {5, "Large",   DIM_RANGE_LARGE,  1, large_single},
-            {6, "Large",   DIM_RANGE_LARGE,  0, large_multi},
+            /* SGEMM 阶段 (1-6) */
+            {1, "Small",  "SGEMM",  DIM_RANGE_SMALL,  1, sgemm_small_single,  PrecisionType::SGEMM},
+            {2, "Small",  "SGEMM",  DIM_RANGE_SMALL,  0, sgemm_small_multi,    PrecisionType::SGEMM},
+            {3, "Medium", "SGEMM",  DIM_RANGE_MEDIUM, 1, sgemm_medium_single, PrecisionType::SGEMM},
+            {4, "Medium", "SGEMM",  DIM_RANGE_MEDIUM, 0, sgemm_medium_multi,   PrecisionType::SGEMM},
+            {5, "Large",  "SGEMM",  DIM_RANGE_LARGE,  1, sgemm_large_single,  PrecisionType::SGEMM},
+            {6, "Large",  "SGEMM",  DIM_RANGE_LARGE,  0, sgemm_large_multi,    PrecisionType::SGEMM},
+            /* SHGEMM 阶段 (7-12) */
+            {7, "Small",  "SHGEMM", DIM_RANGE_SMALL,  1, shgemm_small_single,  PrecisionType::SHGEMM},
+            {8, "Small",  "SHGEMM", DIM_RANGE_SMALL,  0, shgemm_small_multi,    PrecisionType::SHGEMM},
+            {9, "Medium", "SHGEMM", DIM_RANGE_MEDIUM, 1, shgemm_medium_single, PrecisionType::SHGEMM},
+            {10, "Medium", "SHGEMM", DIM_RANGE_MEDIUM, 0, shgemm_medium_multi,   PrecisionType::SHGEMM},
+            {11, "Large",  "SHGEMM", DIM_RANGE_LARGE,  1, shgemm_large_single,  PrecisionType::SHGEMM},
+            {12, "Large",  "SHGEMM", DIM_RANGE_LARGE,  0, shgemm_large_multi,    PrecisionType::SHGEMM},
+            /* SBGEMM 阶段 (13-18) */
+            {13, "Small",  "SBGEMM", DIM_RANGE_SMALL,  1, sbgemm_small_single,  PrecisionType::SBGEMM},
+            {14, "Small",  "SBGEMM", DIM_RANGE_SMALL,  0, sbgemm_small_multi,    PrecisionType::SBGEMM},
+            {15, "Medium", "SBGEMM", DIM_RANGE_MEDIUM, 1, sbgemm_medium_single, PrecisionType::SBGEMM},
+            {16, "Medium", "SBGEMM", DIM_RANGE_MEDIUM, 0, sbgemm_medium_multi,   PrecisionType::SBGEMM},
+            {17, "Large",  "SBGEMM", DIM_RANGE_LARGE,  1, sbgemm_large_single,  PrecisionType::SBGEMM},
+            {18, "Large",  "SBGEMM", DIM_RANGE_LARGE,  0, sbgemm_large_multi,    PrecisionType::SBGEMM},
         };
 
         for (const auto& s : stages) {
@@ -248,10 +304,11 @@ int main(int argc, char *argv[]) {
 
             auto stage_start = std::chrono::steady_clock::now();
 
-            const char* blas_label = (s.blas_threads == 1) ? "BLAS=1 (single)" : "BLAS=random 2-50 (multi)";
-            std::cout << "┌─ Stage " << s.stage_num << "/6 [" << s.dim_label << "] " << blas_label << "\n";
+            const char* blas_label = (s.blas_threads == 1) ? "single" : "multi";
+            std::cout << "┌─ Stage " << s.stage_num << "/18 " << s.dim_label << " "
+                      << s.precision_label << " " << blas_label << "\n";
 
-            if (run_test_stage(max_workers, s.blas_threads, s.dim_range, s.iters, seed) != 0) {
+            if (run_test_stage(max_workers, s.blas_threads, s.dim_range, s.iters, seed, s.precision) != 0) {
                 return 1;
             }
 

@@ -14,7 +14,7 @@ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/out)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/out)
 
 # 头文件搜索路径
-include_directories(${CMAKE_SOURCE_DIR}/.. ${CMAKE_SOURCE_DIR}/../include)
+include_directories(${CMAKE_SOURCE_DIR}/.. ${CMAKE_SOURCE_DIR}/../include ${CMAKE_SOURCE_DIR}/stubs)
 
 # 选项：使用 buggy 实现（用于测试 fuzz_test 的错误检测能力）
 option(USE_BUGGY_IMPL "Use buggy implementation to test error detection" OFF)
@@ -24,6 +24,8 @@ set(CPP_SOURCES
     fuzz_test_main.cpp
     fuzz_test_worker.cpp
     fuzz_test_globals.cpp
+    stubs/shgemm_stub.cpp
+    stubs/sbgemm_stub.cpp
 )
 
 # C 源文件（BLAS 实现）
@@ -51,7 +53,7 @@ set_source_files_properties(${C_SOURCES} PROPERTIES LANGUAGE C)
 target_compile_features(fuzz_test PRIVATE c_std_99)
 
 # 链接 pthread 库
-target_link_libraries(fuzz_test PRIVATE pthread)
+target_link_libraries(fuzz_test PRIVATE pthread m)
 
 # 查找并链接 OpenMP
 # 对于 macOS with Homebrew libomp

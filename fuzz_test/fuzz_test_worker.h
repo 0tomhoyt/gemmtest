@@ -24,6 +24,16 @@ extern std::atomic<int> completed_large;
 extern std::mutex fail_mutex;
 
 /* Failure log array */
+
+/* ============================================================
+ * 精度类型枚举 (Precision Type Enumeration)
+ * ============================================================ */
+
+enum class PrecisionType {
+    SGEMM,  /* 单精度 (float) */
+    SHGEMM, /* 半精度 (float16_t / FP16) */
+    SBGEMM  /* BF16 (bfloat16) */
+};
 extern FailureInfo failures[];
 extern int failure_count;
 
@@ -34,7 +44,8 @@ struct ThreadArg {
     unsigned int rand_seed;
     int blas_threads = 1;   /* Fixed BLAS thread count for this worker */
     int dim_range = 0;       /* 0=随机类别, 128/512/1024=固定维度范围 */
-    std::unique_ptr<ThreadBuffers> buffers;
+    PrecisionType precision = PrecisionType::SGEMM;  /* 测试精度类型 */
+    std::unique_ptr<ThreadBuffers> buffers;  /* 保留用于兼容性，后续将改为 std::variant */
 };
 
 /* Thread worker function declaration */

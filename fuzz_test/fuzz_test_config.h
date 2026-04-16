@@ -47,4 +47,17 @@ constexpr int BUFFER_ALIGNMENT = 64;
  */
 #define MAX_BLAS_THREADS 50
 
+/* ============================================================
+ * 容差配置 (Tolerance Configuration)
+ * ============================================================ */
+
+/* SGEMM 容差配置 */
+constexpr float SGEMM_TOLERANCE = 1e-2f;     /* SGEMM 比较容差 */
+
+/* SHGEMM 容差配置 */
+constexpr float SHGEMM_TOLERANCE = 1e-1f;     /* SHGEMM 比较容差 (半精度需要更宽松的容差) */
+
+/* SBGEMM 容差配置 */
+constexpr float SBGEMM_TOLERANCE = 1e-1f;     /* SBGEMM 比较容差 (BF16 精度与 FP16 相当) */
+
 #endif /* FUZZ_TEST_CONFIG_H */
