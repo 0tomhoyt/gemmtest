@@ -4,7 +4,7 @@
 #include "gemm_benchmark.h"
 #include "unigemm_920f.h"
 #include "../openblas.h"
-#include "fuzz_test_util.h"
+#include "test_util.h"
 
 /* Thread worker function implementation */
 void thread_worker(ThreadArg* targ) {
