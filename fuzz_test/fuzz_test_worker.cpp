@@ -1,6 +1,6 @@
 #include "fuzz_test_worker.h"
-#include "fuzz_test_random.cpp"
-#include "fuzz_test_compare.cpp"
+#include "fuzz_test_random.h"
+#include "fuzz_test_compare.h"
 #include "gemm_benchmark.h"
 #include "unigemm_920f.h"
 #include "../openblas.h"

@@ -13,7 +13,7 @@
 #include "unigemm_920f.h"
 #include "fuzz_test_config.h"
 #include "fuzz_test_worker.h"
-#include "fuzz_test_report.cpp"
+#include "fuzz_test_report.h"
 
 /* Progress bar state */
 static std::atomic<bool> progress_running{false};

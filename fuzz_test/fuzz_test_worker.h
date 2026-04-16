@@ -3,7 +3,7 @@
 
 #include "fuzz_test_config.h"
 #include "fuzz_test_failure.h"
-#include "fuzz_test_buffer.cpp"
+#include "fuzz_test_buffer.h"
 #include <thread>
 #include <atomic>
 #include <mutex>
