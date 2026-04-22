@@ -5,8 +5,6 @@
 #include "unigemm_920f.h"
 #include "../openblas.h"
 #include "test_util.h"
-#include "stubs/shgemm_stub.h"
-#include "stubs/sbgemm_stub.h"
 #include <cstring>
 #include <cstdlib>
 #include <cstdint>

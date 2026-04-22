@@ -304,7 +304,7 @@ int main(int argc, char *argv[]) {
 
             auto stage_start = std::chrono::steady_clock::now();
 
-            const char* blas_label = (s.blas_threads == 1) ? "single" : "multi";
+            const char* blas_label = (s.blas_threads == 1) ? "single thread" : "multi thread";
             std::cout << "┌─ Stage " << s.stage_num << "/18 " << s.dim_label << " "
                       << s.precision_label << " " << blas_label << "\n";
 
