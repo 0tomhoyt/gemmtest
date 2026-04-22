@@ -4,6 +4,7 @@
 #include "gemm_benchmark.h"
 #include "unigemm_920f.h"
 #include "fuzz_test_failure.h"
+#include "fuzz_test_worker.h"
 #include <iostream>
 #include <iomanip>
 
@@ -25,9 +26,21 @@ inline const char* order_name(enum CBLAS_ORDER order) {
     }
 }
 
+/* Get precision name string */
+inline const char* precision_name(PrecisionType p) {
+    switch (p) {
+        case PrecisionType::SGEMM:  return "SGEMM";
+        case PrecisionType::SHGEMM: return "SHGEMM";
+        case PrecisionType::SBGEMM: return "SBGEMM";
+    }
+    return "?";
+}
+
 /* Print failure details */
 inline void print_failure(const FailureInfo& info) {
-    std::cout << "┌─ Test Failure\n";
+    std::cout << "┌─ Test Failure [Stage " << info.stage_num << "/18 "
+              << precision_name(info.precision) << " "
+              << info.dim_label << " " << info.blas_label << "]\n";
     std::cout << "│  Parameters:\n";
     std::cout << "│    " << order_name(info.order) << " | "
               << "transA=" << trans_name(info.transA) << ", "

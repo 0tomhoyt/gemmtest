@@ -73,7 +73,10 @@ static void stop_progress() {
 /* 运行单阶段测试 */
 static int run_test_stage(int num_threads, int blas_threads, int dim_range,
                           int total_iterations, unsigned int base_seed,
-                          PrecisionType precision = PrecisionType::SGEMM) {
+                          PrecisionType precision = PrecisionType::SGEMM,
+                          int stage_num = 0,
+                          const char* dim_label = "",
+                          const char* blas_label = "") {
     /* Calculate iterations per thread - distribute remainder to first workers */
     int iterations_per_worker = total_iterations / num_threads;
     int remainder = total_iterations % num_threads;
@@ -105,6 +108,9 @@ static int run_test_stage(int num_threads, int blas_threads, int dim_range,
         targs[i].blas_threads = blas_threads;  /* Fixed BLAS thread count for this worker */
         targs[i].dim_range = dim_range;         /* Fixed dimension range for this stage */
         targs[i].precision = precision;         /* Precision type for this stage */
+        targs[i].stage_num = stage_num;          /* Stage number for failure reporting */
+        targs[i].dim_label = dim_label;          /* Dimension label for failure reporting */
+        targs[i].blas_label = blas_label;        /* BLAS thread mode label for failure reporting */
 
         /* Allocate buffers for this thread */
         targs[i].buffers = alloc_thread_buffers(MAX_DIM, MAX_LD);
@@ -308,7 +314,8 @@ int main(int argc, char *argv[]) {
             std::cout << "┌─ Stage " << s.stage_num << "/18 " << s.dim_label << " "
                       << s.precision_label << " " << blas_label << "\n";
 
-            if (run_test_stage(max_workers, s.blas_threads, s.dim_range, s.iters, seed, s.precision) != 0) {
+            if (run_test_stage(max_workers, s.blas_threads, s.dim_range, s.iters, seed, s.precision,
+                               s.stage_num, s.dim_label, blas_label) != 0) {
                 return 1;
             }
 
@@ -335,6 +342,27 @@ int main(int argc, char *argv[]) {
             print_failure(failures[i]);
         }
         std::cout << std::string(70, '-') << "\n";
+
+        /* Per-stage failure summary */
+        if (!manual_config) {
+            /* Count failures per stage from stored failure records */
+            int stage_fail[20] = {};  /* indexed by stage_num */
+            for (int i = 0; i < failure_count; i++) {
+                int sn = failures[i].stage_num;
+                if (sn >= 1 && sn <= 18) stage_fail[sn]++;
+            }
+            std::cout << "\n  Stage Failure Summary:\n";
+            for (int i = 0; i < failure_count; i++) {
+                int sn = failures[i].stage_num;
+                if (sn < 1 || sn > 18 || stage_fail[sn] == 0) continue;
+                std::cout << "    Stage " << std::setw(2) << sn << "/18  "
+                          << std::setw(6) << precision_name(failures[i].precision) << "  "
+                          << std::setw(6) << failures[i].dim_label << "  "
+                          << std::setw(13) << failures[i].blas_label << ": "
+                          << std::setw(5) << stage_fail[sn] << " failures\n";
+                stage_fail[sn] = 0;  /* only print once per stage */
+            }
+        }
     }
 
     /* Print results last */

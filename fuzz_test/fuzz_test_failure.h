@@ -4,6 +4,9 @@
 #include "gemm_benchmark.h"
 #include "unigemm_920f.h"
 
+/* Forward declaration - defined in fuzz_test_worker.h */
+enum class PrecisionType;
+
 constexpr int MAX_MISMATCHES = 20;
 
 /* Single mismatch record */
@@ -17,6 +20,13 @@ struct MismatchRecord {
 
 /* Failure log structure */
 struct FailureInfo {
+    /* Stage identification */
+    int stage_num;
+    PrecisionType precision;
+    const char* dim_label;
+    const char* blas_label;
+
+    /* Test parameters */
     enum CBLAS_ORDER order;
     enum CBLAS_TRANSPOSE transA;
     enum CBLAS_TRANSPOSE transB;

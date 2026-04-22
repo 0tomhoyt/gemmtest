@@ -45,7 +45,10 @@ struct ThreadArg {
     int blas_threads = 1;   /* Fixed BLAS thread count for this worker */
     int dim_range = 0;       /* 0=随机类别, 128/512/1024=固定维度范围 */
     PrecisionType precision = PrecisionType::SGEMM;  /* 测试精度类型 */
-    std::unique_ptr<ThreadBuffers> buffers;  /* 保留用于兼容性，后续将改为 std::variant */
+    int stage_num = 0;       /* Stage number for failure reporting */
+    const char* dim_label = "";    /* "Small" / "Medium" / "Large" */
+    const char* blas_label = "";   /* "single thread" / "multi thread" */
+    std::unique_ptr<ThreadBuffers> buffers;
 };
 
 /* Thread worker function declaration */

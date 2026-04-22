@@ -107,6 +107,10 @@ void thread_worker(ThreadArg* targ) {
         /* Run implementation and reference based on precision type */
         bool passed = false;
         FailureInfo fail_info{};
+        fail_info.stage_num = targ->stage_num;
+        fail_info.precision = targ->precision;
+        fail_info.dim_label = targ->dim_label;
+        fail_info.blas_label = targ->blas_label;
         fail_info.order = order;
         fail_info.transA = transA;
         fail_info.transB = transB;
