@@ -136,60 +136,59 @@ void thread_worker(ThreadArg* targ) {
             passed = compare_matrices(c_impl_buf, c_ref_buf, order, m, n, ldc,
                                       SGEMM_TOLERANCE, &fail_info);
         } else if (targ->precision == PrecisionType::SHGEMM) {
-            /* SHGEMM 路径 - 使用标准 BLAS SHGEMM 接口
-             * alpha, beta: float 类型
-             * a, b: float16_t* 类型
-             * c: float* 类型
+            /* SHGEMM 路径
+             * 1. 生成 FP16 原始数据
+             * 2. 将 FP16 扩展为 float（给 ref 和 impl 共用）
+             * 3. impl 走 stub（FP16→float→sgemm），ref 直接用扩展后的 float
              */
 
-            /* 分配半精度缓冲区（仅用于 A 和 B） */
+            /* 分配 FP16 缓冲区 */
             float16_t* a_half = static_cast<float16_t*>(std::malloc(a_size * sizeof(float16_t)));
             float16_t* b_half = static_cast<float16_t*>(std::malloc(b_size * sizeof(float16_t)));
 
             if (!a_half || !b_half) {
-                /* 内存分配失败，清理并跳过此测试 */
                 std::free(a_half);
                 std::free(b_half);
                 continue;
             }
 
-            /* 将单精度 A、B 矩阵转换为半精度 */
-            for (BLASINT i = 0; i < a_size; i++) a_half[i] = static_cast<float16_t>(a_buf[i]);
-            for (BLASINT i = 0; i < b_size; i++) b_half[i] = static_cast<float16_t>(b_buf[i]);
+            /* 用随机 uint16 位模式生成 FP16 数据 */
+            std::uniform_int_distribution<uint16_t> dist_u16(0, 65535);
+            for (BLASINT i = 0; i < a_size; i++)
+                a_half[i] = static_cast<float16_t>(dist_u16(rng.get_engine()));
+            for (BLASINT i = 0; i < b_size; i++)
+                b_half[i] = static_cast<float16_t>(dist_u16(rng.get_engine()));
 
-            /* 记录原始值到 failure info */
+            /* 将 FP16 扩展为 float，作为 ref 和 impl 的共同输入 */
+            for (BLASINT i = 0; i < a_size; i++)
+                a_buf[i] = static_cast<float>(a_half[i]);
+            for (BLASINT i = 0; i < b_size; i++)
+                b_buf[i] = static_cast<float>(b_half[i]);
+
             fail_info.alpha = alpha;
             fail_info.beta = beta;
 
-            /* 运行 SHGEMM 实现 (存根函数)
-             * alpha, beta 已经是 float，直接传递
-             * a_half, b_half 是 float16_t*
-             * c_impl_buf 是 float*，直接作为输出
-             */
+            /* impl: stub 内部将 FP16→float→cblas_sgemm */
             cblas_shgemm(order, transA, transB, m, n, k, alpha, a_half, lda,
                         b_half, ldb, beta, c_impl_buf, ldc);
 
-            /* 运行参考实现：将半精度转单精度后调用 SGEMM reference */
+            /* ref: 用扩展后的 float 数据调用 reference */
             cblas_sgemm_ref(order, transA, transB, m, n, k, alpha, a_buf, lda,
                             b_buf, ldb, beta, c_ref_buf, ldc);
 
-            /* 比较结果
-             * c_impl_buf 和 c_ref_buf 都是 float* 类型，直接比较
-             */
             passed = compare_matrices(c_impl_buf, c_ref_buf, order, m, n, ldc,
                                       SHGEMM_TOLERANCE, &fail_info);
 
-            /* 清理半精度缓冲区 */
             std::free(a_half);
             std::free(b_half);
         } else {
-            /* SBGEMM 路径 - 使用标准 BLAS SBGEMM 接口
-             * alpha, beta: float 类型
-             * a, b: bfloat16_t* 类型
-             * c: float* 类型
+            /* SBGEMM 路径
+             * 1. 生成 BF16 原始数据
+             * 2. 将 BF16 扩展为 float（给 ref 和 impl 共用）
+             * 3. impl 走 stub（BF16→float→sgemm），ref 直接用扩展后的 float
              */
 
-            /* 分配 BF16 缓冲区（仅用于 A 和 B） */
+            /* 分配 BF16 缓冲区 */
             bfloat16_t* a_bf16 = static_cast<bfloat16_t*>(std::malloc(a_size * sizeof(bfloat16_t)));
             bfloat16_t* b_bf16 = static_cast<bfloat16_t*>(std::malloc(b_size * sizeof(bfloat16_t)));
 
@@ -199,36 +198,37 @@ void thread_worker(ThreadArg* targ) {
                 continue;
             }
 
-            /* 将单精度 A、B 矩阵转换为 BF16 */
-            /* BF16 转换：截断 float 低 16 位，保留高 16 位 */
+            /* 用随机 uint16 位模式生成 BF16 数据 */
+            std::uniform_int_distribution<uint16_t> dist_u16(0, 65535);
+            for (BLASINT i = 0; i < a_size; i++)
+                a_bf16[i] = static_cast<bfloat16_t>(dist_u16(rng.get_engine()));
+            for (BLASINT i = 0; i < b_size; i++)
+                b_bf16[i] = static_cast<bfloat16_t>(dist_u16(rng.get_engine()));
+
+            /* 将 BF16 扩展为 float（左移 16 位），作为 ref 和 impl 的共同输入 */
             for (BLASINT i = 0; i < a_size; i++) {
-                uint32_t bits;
-                std::memcpy(&bits, &a_buf[i], sizeof(float));
-                a_bf16[i] = static_cast<bfloat16_t>(bits >> 16);
+                uint32_t bits = static_cast<uint32_t>(a_bf16[i]) << 16;
+                std::memcpy(&a_buf[i], &bits, sizeof(float));
             }
             for (BLASINT i = 0; i < b_size; i++) {
-                uint32_t bits;
-                std::memcpy(&bits, &b_buf[i], sizeof(float));
-                b_bf16[i] = static_cast<bfloat16_t>(bits >> 16);
+                uint32_t bits = static_cast<uint32_t>(b_bf16[i]) << 16;
+                std::memcpy(&b_buf[i], &bits, sizeof(float));
             }
 
-            /* 记录原始值到 failure info */
             fail_info.alpha = alpha;
             fail_info.beta = beta;
 
-            /* 运行 SBGEMM 实现 (存根函数) */
+            /* impl: stub 内部将 BF16→float→cblas_sgemm */
             cblas_sbgemm(order, transA, transB, m, n, k, alpha, a_bf16, lda,
                         b_bf16, ldb, beta, c_impl_buf, ldc);
 
-            /* 运行参考实现 */
+            /* ref: 用扩展后的 float 数据调用 reference */
             cblas_sgemm_ref(order, transA, transB, m, n, k, alpha, a_buf, lda,
                             b_buf, ldb, beta, c_ref_buf, ldc);
 
-            /* 比较结果 */
             passed = compare_matrices(c_impl_buf, c_ref_buf, order, m, n, ldc,
                                       SBGEMM_TOLERANCE, &fail_info);
 
-            /* 清理 BF16 缓冲区 */
             std::free(a_bf16);
             std::free(b_bf16);
         }

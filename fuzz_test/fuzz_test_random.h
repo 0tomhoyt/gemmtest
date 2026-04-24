@@ -155,6 +155,11 @@ public:
 private:
     std::mt19937 rng_;
 
+public:
+    /* Expose engine for external distributions (e.g. uint16_t random) */
+    std::mt19937& get_engine() { return rng_; }
+private:
+
     /* Special values for alpha/beta with higher probability */
     static constexpr std::array<float, 8> special_values_ = {
         0.0f, 1.0f, -1.0f, 2.0f, 0.5f, -0.5f, 0.25f, -2.0f
