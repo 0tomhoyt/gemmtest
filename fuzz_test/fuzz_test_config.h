@@ -51,13 +51,13 @@ constexpr int BUFFER_ALIGNMENT = 64;
  * 容差配置 (Tolerance Configuration)
  * ============================================================ */
 
-/* SGEMM 容差配置 */
-constexpr float SGEMM_TOLERANCE = 1e-2f;     /* SGEMM 比较容差 */
-
-/* SHGEMM 容差配置 */
-constexpr float SHGEMM_TOLERANCE = 1e-1f;     /* SHGEMM 比较容差 (半精度需要更宽松的容差) */
-
-/* SBGEMM 容差配置 */
-constexpr float SBGEMM_TOLERANCE = 1e-1f;     /* SBGEMM 比较容差 (BF16 精度与 FP16 相当) */
+/* 所有精度容差统一为 1e-3
+ * impl 和 ref 都操作相同的 float 数据（由各精度扩展而来），
+ * 误差仅来自 cblas_sgemm vs cblas_sgemm_ref 的浮点累加顺序差异。
+ * 1024×1024 矩阵的理论误差约 K×eps ≈ 6e-5，1e-3 留约 16 倍余量。
+ */
+constexpr float SGEMM_TOLERANCE  = 1e-3f;
+constexpr float SHGEMM_TOLERANCE = 1e-3f;
+constexpr float SBGEMM_TOLERANCE = 1e-3f;
 
 #endif /* FUZZ_TEST_CONFIG_H */

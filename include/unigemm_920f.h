@@ -48,8 +48,12 @@ void cblas_shgemm(const enum CBLAS_ORDER order, const enum CBLAS_TRANSPOSE trans
  * BF16 浮点类型定义 (Bfloat16 Floating Point Types)
  * ============================================================ */
 
+#if defined(__BF16_TYPE__)
+typedef __bf16 bfloat16_t;
+#else
 #include <stdint.h>
-typedef uint16_t bfloat16_t;  /* BF16: 1 bit sign, 8 bit exponent, 7 bit mantissa */
+typedef uint16_t bfloat16_t;  /* 回退到 uint16，需用位操作转换 */
+#endif
 
 /* SBGEMM 函数声明 */
 /* 注意：alpha 和 beta 是 float，a 和 b 是 bfloat16，c 是 float (标准 BLAS 接口) */

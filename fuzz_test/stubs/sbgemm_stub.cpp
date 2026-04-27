@@ -6,15 +6,19 @@
 
 /**
  * bfloat16 到 float 的转换
- * BF16 格式: 1 bit sign, 8 bit exponent, 7 bit mantissa
- * 只需将 16 位 BF16 左移 16 位到 float 的高 16 位即可
  */
+#if defined(__BF16_TYPE__)
+static inline float bfloat16_to_float(bfloat16_t bf16) {
+    return static_cast<float>(bf16);
+}
+#else
 static inline float bfloat16_to_float(bfloat16_t bf16) {
     uint32_t bits = static_cast<uint32_t>(bf16) << 16;
     float result;
     std::memcpy(&result, &bits, sizeof(float));
     return result;
 }
+#endif
 
 /**
  * SBGEMM 存根实现

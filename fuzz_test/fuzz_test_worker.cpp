@@ -12,14 +12,14 @@
 /* Thread worker function implementation */
 void thread_worker(ThreadArg* targ) {
     RandomGenerator rng(targ->rand_seed);
-    float* a_buf = targ->buffers->a_ptr();
-    float* b_buf = targ->buffers->b_ptr();
-    float* c_impl_buf = targ->buffers->c_impl_ptr();
-    float* c_ref_buf = targ->buffers->c_ref_ptr();
-    float16_t* a_half = targ->buffers->a_half_ptr();
-    float16_t* b_half = targ->buffers->b_half_ptr();
-    bfloat16_t* a_bf16 = targ->buffers->a_bf16_ptr();
-    bfloat16_t* b_bf16 = targ->buffers->b_bf16_ptr();
+    float *a_buf = targ->buffers->a_ptr();
+    float *b_buf = targ->buffers->b_ptr();
+    float *c_impl_buf = targ->buffers->c_impl_ptr();
+    float *c_ref_buf = targ->buffers->c_ref_ptr();
+    float16_t *a_half = targ->buffers->a_half_ptr();
+    float16_t *b_half = targ->buffers->b_half_ptr();
+    bfloat16_t *a_bf16 = targ->buffers->a_bf16_ptr();
+    bfloat16_t *b_bf16 = targ->buffers->b_bf16_ptr();
     size_t max_buf_size = targ->buffers->max_size;
 
     for (int iter = 0; iter < targ->iterations; iter++) {
@@ -177,40 +177,25 @@ void thread_worker(ThreadArg* targ) {
                                       SHGEMM_TOLERANCE, &fail_info);
         } else {
             /* SBGEMM 路径
-             * 1. 用 InitMatrix 生成 float 数据，截断到 a_bf16/b_bf16（BF16 为主数据源）
+             * 1. InitMatrix 直接生成 [0,1] BF16 A,B 矩阵到 a_bf16/b_bf16
              * 2. InitMatrix 生成 float C 矩阵，复制到 C_ref
-             * 3. BF16 → float 扩展到 a_buf/b_buf（给 ref 使用）
+             * 3. static_cast BF16 → float 扩展到 a_buf/b_buf（给 ref 使用）
              * 4. impl 用 a_bf16/b_bf16，ref 用 a_buf/b_buf
              */
 
-            /* 1. Init BF16 A,B（通过 float 中间步骤截断得到） */
-            InitMatrix(a_buf, a_size, iter * 3);
-            InitMatrix(b_buf, b_size, iter * 3 + 1);
-
-            for (BLASINT i = 0; i < a_size; i++) {
-                uint32_t bits;
-                std::memcpy(&bits, &a_buf[i], sizeof(float));
-                a_bf16[i] = static_cast<bfloat16_t>(bits >> 16);
-            }
-            for (BLASINT i = 0; i < b_size; i++) {
-                uint32_t bits;
-                std::memcpy(&bits, &b_buf[i], sizeof(float));
-                b_bf16[i] = static_cast<bfloat16_t>(bits >> 16);
-            }
+            /* 1. Init BF16 A,B */
+            InitMatrix(a_bf16, a_size, iter * 3);
+            InitMatrix(b_bf16, b_size, iter * 3 + 1);
 
             /* 2. Init float C, copy to C_ref */
             InitMatrix(c_impl_buf, c_size, iter * 3 + 2);
             memcpy(c_ref_buf, c_impl_buf, c_size * sizeof(float));
 
-            /* 3. BF16 → float（扩展到 a_buf/b_buf，给 ref 使用） */
-            for (BLASINT i = 0; i < a_size; i++) {
-                uint32_t bits = static_cast<uint32_t>(a_bf16[i]) << 16;
-                std::memcpy(&a_buf[i], &bits, sizeof(float));
-            }
-            for (BLASINT i = 0; i < b_size; i++) {
-                uint32_t bits = static_cast<uint32_t>(b_bf16[i]) << 16;
-                std::memcpy(&b_buf[i], &bits, sizeof(float));
-            }
+            /* 3. BF16 → float（static_cast 扩展，给 ref 使用） */
+            for (BLASINT i = 0; i < a_size; i++)
+                a_buf[i] = static_cast<float>(a_bf16[i]);
+            for (BLASINT i = 0; i < b_size; i++)
+                b_buf[i] = static_cast<float>(b_bf16[i]);
 
             fail_info.alpha = alpha;
             fail_info.beta = beta;
