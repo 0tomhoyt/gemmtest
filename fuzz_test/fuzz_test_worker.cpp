@@ -16,6 +16,10 @@ void thread_worker(ThreadArg* targ) {
     float* b_buf = targ->buffers->b_ptr();
     float* c_impl_buf = targ->buffers->c_impl_ptr();
     float* c_ref_buf = targ->buffers->c_ref_ptr();
+    float16_t* a_half = targ->buffers->a_half_ptr();
+    float16_t* b_half = targ->buffers->b_half_ptr();
+    bfloat16_t* a_bf16 = targ->buffers->a_bf16_ptr();
+    bfloat16_t* b_bf16 = targ->buffers->b_bf16_ptr();
     size_t max_buf_size = targ->buffers->max_size;
 
     for (int iter = 0; iter < targ->iterations; iter++) {
@@ -137,21 +141,11 @@ void thread_worker(ThreadArg* targ) {
                                       SGEMM_TOLERANCE, &fail_info);
         } else if (targ->precision == PrecisionType::SHGEMM) {
             /* SHGEMM 路径
-             * 1. InitMatrix 生成 [0,1] float 数据
-             * 2. float → FP16（截断低位）
-             * 3. FP16 → float（扩展回 float，给 ref 和 impl 共用）
-             * 4. impl 走 stub（FP16→float→sgemm），ref 用扩展后的 float
+             * 1. InitMatrix 生成 [0,1] float 数据到 a_buf/b_buf
+             * 2. float → FP16（截断低位）写入 a_half/b_half
+             * 3. FP16 → float（扩展回 float）写回 a_buf/b_buf（给 ref 使用）
+             * 4. impl 走 stub（a_half/b_half → float → sgemm），ref 用 a_buf/b_buf
              */
-
-            /* 分配 FP16 缓冲区 */
-            float16_t* a_half = static_cast<float16_t*>(std::malloc(a_size * sizeof(float16_t)));
-            float16_t* b_half = static_cast<float16_t*>(std::malloc(b_size * sizeof(float16_t)));
-
-            if (!a_half || !b_half) {
-                std::free(a_half);
-                std::free(b_half);
-                continue;
-            }
 
             /* 用 InitMatrix 生成 [0,1] float 数据 */
             InitMatrix(a_buf, a_size, iter * 3);
@@ -188,26 +182,13 @@ void thread_worker(ThreadArg* targ) {
 
             passed = compare_matrices(c_impl_buf, c_ref_buf, order, m, n, ldc,
                                       SHGEMM_TOLERANCE, &fail_info);
-
-            std::free(a_half);
-            std::free(b_half);
         } else {
             /* SBGEMM 路径
-             * 1. InitMatrix 生成 [0,1] float 数据
-             * 2. float → BF16（截断低位）
-             * 3. BF16 → float（扩展回 float，给 ref 和 impl 共用）
-             * 4. impl 走 stub（BF16→float→sgemm），ref 用扩展后的 float
+             * 1. InitMatrix 生成 [0,1] float 数据到 a_buf/b_buf
+             * 2. float → BF16（截断低位）写入 a_bf16/b_bf16
+             * 3. BF16 → float（扩展回 float）写回 a_buf/b_buf（给 ref 使用）
+             * 4. impl 走 stub（a_bf16/b_bf16 → float → sgemm），ref 用 a_buf/b_buf
              */
-
-            /* 分配 BF16 缓冲区 */
-            bfloat16_t* a_bf16 = static_cast<bfloat16_t*>(std::malloc(a_size * sizeof(bfloat16_t)));
-            bfloat16_t* b_bf16 = static_cast<bfloat16_t*>(std::malloc(b_size * sizeof(bfloat16_t)));
-
-            if (!a_bf16 || !b_bf16) {
-                std::free(a_bf16);
-                std::free(b_bf16);
-                continue;
-            }
 
             /* 用 InitMatrix 生成 [0,1] float 数据 */
             InitMatrix(a_buf, a_size, iter * 3);
@@ -248,9 +229,6 @@ void thread_worker(ThreadArg* targ) {
 
             passed = compare_matrices(c_impl_buf, c_ref_buf, order, m, n, ldc,
                                       SBGEMM_TOLERANCE, &fail_info);
-
-            std::free(a_bf16);
-            std::free(b_bf16);
         }
 
         total_tests.fetch_add(1, std::memory_order_relaxed);
