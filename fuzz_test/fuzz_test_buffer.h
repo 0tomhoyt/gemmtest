@@ -16,14 +16,14 @@
 /* 原有的 ThreadBuffers 保持不变，用于向后兼容 */
 /* Buffer for matrix data (allocated per thread with 64-byte alignment) */
 struct ThreadBuffers {
-    float* a_buf;
-    float* b_buf;
-    float* c_impl_buf;
-    float* c_ref_buf;
-    float16_t* a_half;   // SHGEMM: impl 使用，与 a_buf 同步
-    float16_t* b_half;
-    bfloat16_t* a_bf16;  // SBGEMM: impl 使用，与 a_buf 同步
-    bfloat16_t* b_bf16;
+    float *a_buf;
+    float *b_buf;
+    float *c_impl_buf;
+    float *c_ref_buf;
+    float16_t *a_half;   // SHGEMM: impl 使用，与 a_buf 同步
+    float16_t *b_half;
+    bfloat16_t *a_bf16;  // SBGEMM: impl 使用，与 a_buf 同步
+    bfloat16_t *b_bf16;
     size_t max_size;
 
     ThreadBuffers() : a_buf(nullptr), b_buf(nullptr),
@@ -108,23 +108,23 @@ struct ThreadBuffers {
     ThreadBuffers& operator=(const ThreadBuffers&) = delete;
 
     /* Get raw pointers (for C interface compatibility) */
-    float* a_ptr() { return a_buf; }
-    float* b_ptr() { return b_buf; }
-    float* c_impl_ptr() { return c_impl_buf; }
-    float* c_ref_ptr() { return c_ref_buf; }
-    float16_t* a_half_ptr() { return a_half; }
-    float16_t* b_half_ptr() { return b_half; }
-    bfloat16_t* a_bf16_ptr() { return a_bf16; }
-    bfloat16_t* b_bf16_ptr() { return b_bf16; }
+    float *a_ptr() { return a_buf; }
+    float *b_ptr() { return b_buf; }
+    float *c_impl_ptr() { return c_impl_buf; }
+    float *c_ref_ptr() { return c_ref_buf; }
+    float16_t *a_half_ptr() { return a_half; }
+    float16_t *b_half_ptr() { return b_half; }
+    bfloat16_t *a_bf16_ptr() { return a_bf16; }
+    bfloat16_t *b_bf16_ptr() { return b_bf16; }
 
-    const float* a_ptr() const { return a_buf; }
-    const float* b_ptr() const { return b_buf; }
-    const float* c_impl_ptr() const { return c_impl_buf; }
-    const float* c_ref_ptr() const { return c_ref_buf; }
-    const float16_t* a_half_ptr() const { return a_half; }
-    const float16_t* b_half_ptr() const { return b_half; }
-    const bfloat16_t* a_bf16_ptr() const { return a_bf16; }
-    const bfloat16_t* b_bf16_ptr() const { return b_bf16; }
+    const float *a_ptr() const { return a_buf; }
+    const float *b_ptr() const { return b_buf; }
+    const float *c_impl_ptr() const { return c_impl_buf; }
+    const float *c_ref_ptr() const { return c_ref_buf; }
+    const float16_t *a_half_ptr() const { return a_half; }
+    const float16_t *b_half_ptr() const { return b_half; }
+    const bfloat16_t *a_bf16_ptr() const { return a_bf16; }
+    const bfloat16_t *b_bf16_ptr() const { return b_bf16; }
 };
 
 /* Allocate thread buffers - returns unique_ptr for automatic cleanup */

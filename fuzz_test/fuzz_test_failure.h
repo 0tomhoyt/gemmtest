@@ -23,8 +23,8 @@ struct FailureInfo {
     /* Stage identification */
     int stage_num;
     PrecisionType precision;
-    const char* dim_label;
-    const char* blas_label;
+    const char *dim_label;
+    const char *blas_label;
 
     /* Test parameters */
     enum CBLAS_ORDER order;

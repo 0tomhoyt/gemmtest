@@ -46,12 +46,12 @@ struct ThreadArg {
     int dim_range = 0;       /* 0=随机类别, 128/512/1024=固定维度范围 */
     PrecisionType precision = PrecisionType::SGEMM;  /* 测试精度类型 */
     int stage_num = 0;       /* Stage number for failure reporting */
-    const char* dim_label = "";    /* "Small" / "Medium" / "Large" */
-    const char* blas_label = "";   /* "single thread" / "multi thread" */
+    const char *dim_label = "";    /* "Small" / "Medium" / "Large" */
+    const char *blas_label = "";   /* "single thread" / "multi thread" */
     std::unique_ptr<ThreadBuffers> buffers;
 };
 
 /* Thread worker function declaration */
-void thread_worker(ThreadArg* targ);
+void thread_worker(ThreadArg *targ);
 
 #endif /* FUZZ_TEST_WORKER_H */

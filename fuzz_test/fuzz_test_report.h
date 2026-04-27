@@ -9,7 +9,7 @@
 #include <iomanip>
 
 /* Get transpose name string */
-inline const char* trans_name(enum CBLAS_TRANSPOSE trans) {
+inline const char *trans_name(enum CBLAS_TRANSPOSE trans) {
     switch (trans) {
         case CblasNoTrans: return "N";
         case CblasTrans: return "T";
@@ -18,7 +18,7 @@ inline const char* trans_name(enum CBLAS_TRANSPOSE trans) {
 }
 
 /* Get order name string */
-inline const char* order_name(enum CBLAS_ORDER order) {
+inline const char *order_name(enum CBLAS_ORDER order) {
     switch (order) {
         case CblasRowMajor: return "R";
         case CblasColMajor: return "C";
@@ -27,7 +27,7 @@ inline const char* order_name(enum CBLAS_ORDER order) {
 }
 
 /* Get precision name string */
-inline const char* precision_name(PrecisionType p) {
+inline const char *precision_name(PrecisionType p) {
     switch (p) {
         case PrecisionType::SGEMM:  return "SGEMM";
         case PrecisionType::SHGEMM: return "SHGEMM";

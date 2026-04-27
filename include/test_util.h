@@ -15,6 +15,6 @@ void InitMatrix(T *data, size_t count, unsigned int seed = 0) {
 }
 
 /* Explicit instantiation for float (avoids duplicate symbol in multiple TUs) */
-extern template void InitMatrix<float>(float*, size_t, unsigned int);
+extern template void InitMatrix<float>(float *, size_t, unsigned int);
 
 #endif /* FUZZ_TEST_UTIL_H */

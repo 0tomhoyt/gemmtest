@@ -10,7 +10,7 @@
 #include <cstdint>
 
 /* Thread worker function implementation */
-void thread_worker(ThreadArg* targ) {
+void thread_worker(ThreadArg *targ) {
     RandomGenerator rng(targ->rand_seed);
     float *a_buf = targ->buffers->a_ptr();
     float *b_buf = targ->buffers->b_ptr();

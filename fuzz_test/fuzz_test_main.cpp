@@ -75,8 +75,8 @@ static int run_test_stage(int num_threads, int blas_threads, int dim_range,
                           int total_iterations, unsigned int base_seed,
                           PrecisionType precision = PrecisionType::SGEMM,
                           int stage_num = 0,
-                          const char* dim_label = "",
-                          const char* blas_label = "") {
+                          const char *dim_label = "",
+                          const char *blas_label = "") {
     /* Calculate iterations per thread - distribute remainder to first workers */
     int iterations_per_worker = total_iterations / num_threads;
     int remainder = total_iterations % num_threads;
@@ -146,7 +146,7 @@ int main(int argc, char *argv[]) {
     int max_workers = std::thread::hardware_concurrency();
 
     /* 检查 UNIGEMM_MAX_WORKERS 环境变量（最高优先级）*/
-    const char* env_workers = std::getenv("UNIGEMM_MAX_WORKERS");
+    const char *env_workers = std::getenv("UNIGEMM_MAX_WORKERS");
     if (env_workers != nullptr) {
         int env_val = std::atoi(env_workers);
         if (env_val > 0 && env_val <= 1024) {  /* 安全上限检查 */
@@ -273,8 +273,8 @@ int main(int argc, char *argv[]) {
 
         struct StageConfig {
             int stage_num;
-            const char* dim_label;
-            const char* precision_label;
+            const char *dim_label;
+            const char *precision_label;
             int dim_range;
             int blas_threads;  /* 1=single, 0=multi */
             int iters;
@@ -310,7 +310,7 @@ int main(int argc, char *argv[]) {
 
             auto stage_start = std::chrono::steady_clock::now();
 
-            const char* blas_label = (s.blas_threads == 1) ? "single thread" : "multi thread";
+            const char *blas_label = (s.blas_threads == 1) ? "single thread" : "multi thread";
             std::cout << "┌─ Stage " << s.stage_num << "/18 " << s.dim_label << " "
                       << s.precision_label << " " << blas_label << "\n";
 
