@@ -174,8 +174,13 @@ fuzz_test/
 | SHGEMM | `float16_t` (FP16) | `cblas_shgemm` | 1e-1 |
 | SBGEMM | `bfloat16_t` (BF16) | `cblas_sbgemm` | 1e-1 |
 
-**SHGEMM 实现**：通过存根将 FP16 输入转换为 FP32，调用 SGEMM reference，输出 FP32
-**SBGEMM 实现**：通过存根将 BF16 输入转换为 FP32，调用 SGEMM reference，输出 FP32
+**数据生成策略**：SHGEMM/SBGEMM 直接以原始精度生成数据（随机 uint16 位模式），然后扩展为 float 给 reference 使用，确保 impl 和 ref 操作完全相同的精度值，差异只来自 GEMM 实现本身。
+
+**SHGEMM/SBGEMM 路径**：
+1. 生成 FP16/BF16 原始数据（随机 uint16 位模式）
+2. 将 FP16/BF16 扩展为 float（给 ref 和 impl 共用）
+3. impl 走 stub（FP16/BF16 → float → cblas_sgemm）
+4. ref 直接用扩展后的 float 调用 reference
 
 ### 3. 参数随机化策略
 

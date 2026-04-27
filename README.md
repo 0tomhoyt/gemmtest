@@ -96,6 +96,8 @@ cmake -DUSE_HBM=ON .. && cmake --build .
 - `shgemm_stub.cpp`：FP16 → FP32 转换 + SGEMM reference
 - `sbgemm_stub.cpp`：BF16 → FP32 转换 + SGEMM reference
 
+**数据生成策略**：SHGEMM/SBGEMM 直接以原始精度生成数据（随机 uint16 位模式），然后扩展为 float 给 reference 使用。impl 和 ref 操作完全相同的精度值，差异只来自 GEMM 实现本身。
+
 ### 2. 模糊测试工具
 
 `fuzz_test/` 提供完整的十八阶段测试框架：
