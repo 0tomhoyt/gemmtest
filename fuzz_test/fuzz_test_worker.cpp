@@ -97,14 +97,6 @@ void thread_worker(ThreadArg* targ) {
         BLASINT c_size = ldc * ((order == CblasRowMajor) ? m : n);
         if (static_cast<size_t>(c_size) > max_buf_size) c_size = static_cast<BLASINT>(max_buf_size);
 
-        /* Initialize matrices using InitMatrix */
-        InitMatrix(a_buf, a_size, iter * 3);
-        InitMatrix(b_buf, b_size, iter * 3 + 1);
-
-        /* Initialize C matrices (same seed for both impl and ref) */
-        InitMatrix(c_impl_buf, c_size, iter * 3 + 2);
-        memcpy(c_ref_buf, c_impl_buf, c_size * sizeof(float));
-
         /* Set number of threads for this BLAS call */
         BlasSetNumThreadsLocal(num_threads);
 
@@ -127,7 +119,16 @@ void thread_worker(ThreadArg* targ) {
         fail_info.num_threads = num_threads;
 
         if (targ->precision == PrecisionType::SGEMM) {
-            /* SGEMM 路径 - 原有实现 */
+            /* SGEMM 路径
+             * 1. InitMatrix 生成 [0,1] float A,B 矩阵
+             * 2. InitMatrix 生成 float C 矩阵，复制到 C_ref
+             * 3. impl 和 ref 都使用 a_buf/b_buf
+             */
+            InitMatrix(a_buf, a_size, iter * 3);
+            InitMatrix(b_buf, b_size, iter * 3 + 1);
+            InitMatrix(c_impl_buf, c_size, iter * 3 + 2);
+            memcpy(c_ref_buf, c_impl_buf, c_size * sizeof(float));
+
             fail_info.alpha = alpha;
             fail_info.beta = beta;
 
@@ -141,29 +142,21 @@ void thread_worker(ThreadArg* targ) {
                                       SGEMM_TOLERANCE, &fail_info);
         } else if (targ->precision == PrecisionType::SHGEMM) {
             /* SHGEMM 路径
-             * 1. InitMatrix 生成 [0,1] float 数据到 a_buf/b_buf
-             * 2. float → FP16（截断低位）写入 a_half/b_half
-             * 3. FP16 → float（扩展回 float）写回 a_buf/b_buf（给 ref 使用）
-             * 4. impl 走 stub（a_half/b_half → float → sgemm），ref 用 a_buf/b_buf
+             * 1. InitMatrix 直接生成 [0,1] FP16 A,B 矩阵到 a_half/b_half
+             * 2. InitMatrix 生成 float C 矩阵，复制到 C_ref
+             * 3. static_cast FP16 → float 扩展到 a_buf/b_buf（给 ref 使用）
+             * 4. impl 用 a_half/b_half，ref 用 a_buf/b_buf
              */
 
-            /* 用 InitMatrix 生成 [0,1] float 数据 */
-            InitMatrix(a_buf, a_size, iter * 3);
-            InitMatrix(b_buf, b_size, iter * 3 + 1);
+            /* 1. Init FP16 A,B */
+            InitMatrix(a_half, a_size, iter * 3);
+            InitMatrix(b_half, b_size, iter * 3 + 1);
 
-            /* float → FP16（截断 float 低 16 位） */
-            for (BLASINT i = 0; i < a_size; i++) {
-                uint32_t bits;
-                std::memcpy(&bits, &a_buf[i], sizeof(float));
-                a_half[i] = static_cast<float16_t>(bits >> 16);
-            }
-            for (BLASINT i = 0; i < b_size; i++) {
-                uint32_t bits;
-                std::memcpy(&bits, &b_buf[i], sizeof(float));
-                b_half[i] = static_cast<float16_t>(bits >> 16);
-            }
+            /* 2. Init float C, copy to C_ref */
+            InitMatrix(c_impl_buf, c_size, iter * 3 + 2);
+            memcpy(c_ref_buf, c_impl_buf, c_size * sizeof(float));
 
-            /* FP16 → float（扩展回 float，给 ref 使用） */
+            /* 3. FP16 → float（static_cast 扩展，给 ref 使用） */
             for (BLASINT i = 0; i < a_size; i++)
                 a_buf[i] = static_cast<float>(a_half[i]);
             for (BLASINT i = 0; i < b_size; i++)
@@ -172,11 +165,11 @@ void thread_worker(ThreadArg* targ) {
             fail_info.alpha = alpha;
             fail_info.beta = beta;
 
-            /* impl: stub 内部将 FP16→float→cblas_sgemm */
+            /* 4. impl: stub 内部将 FP16→float→cblas_sgemm */
             cblas_shgemm(order, transA, transB, m, n, k, alpha, a_half, lda,
                         b_half, ldb, beta, c_impl_buf, ldc);
 
-            /* ref: 用扩展后的 float 数据调用 reference */
+            /* ref: 用扩展后的 float 数据 */
             cblas_sgemm_ref(order, transA, transB, m, n, k, alpha, a_buf, lda,
                             b_buf, ldb, beta, c_ref_buf, ldc);
 
@@ -184,17 +177,16 @@ void thread_worker(ThreadArg* targ) {
                                       SHGEMM_TOLERANCE, &fail_info);
         } else {
             /* SBGEMM 路径
-             * 1. InitMatrix 生成 [0,1] float 数据到 a_buf/b_buf
-             * 2. float → BF16（截断低位）写入 a_bf16/b_bf16
-             * 3. BF16 → float（扩展回 float）写回 a_buf/b_buf（给 ref 使用）
-             * 4. impl 走 stub（a_bf16/b_bf16 → float → sgemm），ref 用 a_buf/b_buf
+             * 1. 用 InitMatrix 生成 float 数据，截断到 a_bf16/b_bf16（BF16 为主数据源）
+             * 2. InitMatrix 生成 float C 矩阵，复制到 C_ref
+             * 3. BF16 → float 扩展到 a_buf/b_buf（给 ref 使用）
+             * 4. impl 用 a_bf16/b_bf16，ref 用 a_buf/b_buf
              */
 
-            /* 用 InitMatrix 生成 [0,1] float 数据 */
+            /* 1. Init BF16 A,B（通过 float 中间步骤截断得到） */
             InitMatrix(a_buf, a_size, iter * 3);
             InitMatrix(b_buf, b_size, iter * 3 + 1);
 
-            /* float → BF16（截断 float 低 16 位） */
             for (BLASINT i = 0; i < a_size; i++) {
                 uint32_t bits;
                 std::memcpy(&bits, &a_buf[i], sizeof(float));
@@ -206,7 +198,11 @@ void thread_worker(ThreadArg* targ) {
                 b_bf16[i] = static_cast<bfloat16_t>(bits >> 16);
             }
 
-            /* BF16 → float（扩展回 float，给 ref 使用） */
+            /* 2. Init float C, copy to C_ref */
+            InitMatrix(c_impl_buf, c_size, iter * 3 + 2);
+            memcpy(c_ref_buf, c_impl_buf, c_size * sizeof(float));
+
+            /* 3. BF16 → float（扩展到 a_buf/b_buf，给 ref 使用） */
             for (BLASINT i = 0; i < a_size; i++) {
                 uint32_t bits = static_cast<uint32_t>(a_bf16[i]) << 16;
                 std::memcpy(&a_buf[i], &bits, sizeof(float));
@@ -219,11 +215,11 @@ void thread_worker(ThreadArg* targ) {
             fail_info.alpha = alpha;
             fail_info.beta = beta;
 
-            /* impl: stub 内部将 BF16→float→cblas_sgemm */
+            /* 4. impl: stub 内部将 BF16→float→cblas_sgemm */
             cblas_sbgemm(order, transA, transB, m, n, k, alpha, a_bf16, lda,
                         b_bf16, ldb, beta, c_impl_buf, ldc);
 
-            /* ref: 用扩展后的 float 数据调用 reference */
+            /* ref: 用扩展后的 float 数据 */
             cblas_sgemm_ref(order, transA, transB, m, n, k, alpha, a_buf, lda,
                             b_buf, ldb, beta, c_ref_buf, ldc);
 
