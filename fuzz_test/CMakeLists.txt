@@ -26,6 +26,7 @@ set(CPP_SOURCES
     fuzz_test_globals.cpp
     stubs/shgemm_stub.cpp
     stubs/sbgemm_stub.cpp
+    ../include/test_util.cpp
 )
 
 # C 源文件（BLAS 实现）

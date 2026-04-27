@@ -137,9 +137,10 @@ void thread_worker(ThreadArg* targ) {
                                       SGEMM_TOLERANCE, &fail_info);
         } else if (targ->precision == PrecisionType::SHGEMM) {
             /* SHGEMM 路径
-             * 1. 生成 FP16 原始数据
-             * 2. 将 FP16 扩展为 float（给 ref 和 impl 共用）
-             * 3. impl 走 stub（FP16→float→sgemm），ref 直接用扩展后的 float
+             * 1. InitMatrix 生成 [0,1] float 数据
+             * 2. float → FP16（截断低位）
+             * 3. FP16 → float（扩展回 float，给 ref 和 impl 共用）
+             * 4. impl 走 stub（FP16→float→sgemm），ref 用扩展后的 float
              */
 
             /* 分配 FP16 缓冲区 */
@@ -152,14 +153,23 @@ void thread_worker(ThreadArg* targ) {
                 continue;
             }
 
-            /* 用随机 uint16 位模式生成 FP16 数据 */
-            std::uniform_int_distribution<uint16_t> dist_u16(0, 65535);
-            for (BLASINT i = 0; i < a_size; i++)
-                a_half[i] = static_cast<float16_t>(dist_u16(rng.get_engine()));
-            for (BLASINT i = 0; i < b_size; i++)
-                b_half[i] = static_cast<float16_t>(dist_u16(rng.get_engine()));
+            /* 用 InitMatrix 生成 [0,1] float 数据 */
+            InitMatrix(a_buf, a_size, iter * 3);
+            InitMatrix(b_buf, b_size, iter * 3 + 1);
 
-            /* 将 FP16 扩展为 float，作为 ref 和 impl 的共同输入 */
+            /* float → FP16（截断 float 低 16 位） */
+            for (BLASINT i = 0; i < a_size; i++) {
+                uint32_t bits;
+                std::memcpy(&bits, &a_buf[i], sizeof(float));
+                a_half[i] = static_cast<float16_t>(bits >> 16);
+            }
+            for (BLASINT i = 0; i < b_size; i++) {
+                uint32_t bits;
+                std::memcpy(&bits, &b_buf[i], sizeof(float));
+                b_half[i] = static_cast<float16_t>(bits >> 16);
+            }
+
+            /* FP16 → float（扩展回 float，给 ref 使用） */
             for (BLASINT i = 0; i < a_size; i++)
                 a_buf[i] = static_cast<float>(a_half[i]);
             for (BLASINT i = 0; i < b_size; i++)
@@ -183,9 +193,10 @@ void thread_worker(ThreadArg* targ) {
             std::free(b_half);
         } else {
             /* SBGEMM 路径
-             * 1. 生成 BF16 原始数据
-             * 2. 将 BF16 扩展为 float（给 ref 和 impl 共用）
-             * 3. impl 走 stub（BF16→float→sgemm），ref 直接用扩展后的 float
+             * 1. InitMatrix 生成 [0,1] float 数据
+             * 2. float → BF16（截断低位）
+             * 3. BF16 → float（扩展回 float，给 ref 和 impl 共用）
+             * 4. impl 走 stub（BF16→float→sgemm），ref 用扩展后的 float
              */
 
             /* 分配 BF16 缓冲区 */
@@ -198,14 +209,23 @@ void thread_worker(ThreadArg* targ) {
                 continue;
             }
 
-            /* 用随机 uint16 位模式生成 BF16 数据 */
-            std::uniform_int_distribution<uint16_t> dist_u16(0, 65535);
-            for (BLASINT i = 0; i < a_size; i++)
-                a_bf16[i] = static_cast<bfloat16_t>(dist_u16(rng.get_engine()));
-            for (BLASINT i = 0; i < b_size; i++)
-                b_bf16[i] = static_cast<bfloat16_t>(dist_u16(rng.get_engine()));
+            /* 用 InitMatrix 生成 [0,1] float 数据 */
+            InitMatrix(a_buf, a_size, iter * 3);
+            InitMatrix(b_buf, b_size, iter * 3 + 1);
 
-            /* 将 BF16 扩展为 float（左移 16 位），作为 ref 和 impl 的共同输入 */
+            /* float → BF16（截断 float 低 16 位） */
+            for (BLASINT i = 0; i < a_size; i++) {
+                uint32_t bits;
+                std::memcpy(&bits, &a_buf[i], sizeof(float));
+                a_bf16[i] = static_cast<bfloat16_t>(bits >> 16);
+            }
+            for (BLASINT i = 0; i < b_size; i++) {
+                uint32_t bits;
+                std::memcpy(&bits, &b_buf[i], sizeof(float));
+                b_bf16[i] = static_cast<bfloat16_t>(bits >> 16);
+            }
+
+            /* BF16 → float（扩展回 float，给 ref 使用） */
             for (BLASINT i = 0; i < a_size; i++) {
                 uint32_t bits = static_cast<uint32_t>(a_bf16[i]) << 16;
                 std::memcpy(&a_buf[i], &bits, sizeof(float));
