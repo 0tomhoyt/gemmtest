@@ -1,6 +1,5 @@
 #include "fuzz_test_worker.h"
 #include "fuzz_test_random.h"
-#include "fuzz_test_compare.h"
 #include "gemm_benchmark.h"
 #include "unigemm_920f.h"
 #include "../openblas.h"
@@ -119,6 +118,8 @@ void thread_worker(ThreadArg *targ) {
         fail_info.ldb = ldb;
         fail_info.ldc = ldc;
         fail_info.num_threads = num_threads;
+        fail_info.alpha = alpha;
+        fail_info.beta = beta;
 
         if (targ->precision == PrecisionType::SGEMM) {
             /* SGEMM 路径
@@ -131,17 +132,15 @@ void thread_worker(ThreadArg *targ) {
             InitMatrix(c_impl_buf, c_size, iter * 3 + 2);
             memcpy(c_ref_buf, c_impl_buf, c_size * sizeof(float));
 
-            fail_info.alpha = alpha;
-            fail_info.beta = beta;
-
             cblas_sgemm(order, transA, transB, m, n, k, alpha, a_buf, lda,
                         b_buf, ldb, beta, c_impl_buf, ldc);
 
             cblas_sgemm_ref(order, transA, transB, m, n, k, alpha, a_buf, lda,
                             b_buf, ldb, beta, c_ref_buf, ldc);
 
-            passed = compare_matrices(c_impl_buf, c_ref_buf, order, m, n, ldc,
-                                      SGEMM_TOLERANCE, &fail_info);
+            passed = CheckMatrixResult(c_ref_buf, c_impl_buf, m, n, ldc,
+                                       SGEMM_TOLERANCE, false,
+                                       order == CblasRowMajor);
         } else if (targ->precision == PrecisionType::SHGEMM) {
             /* SHGEMM 路径
              * 1. InitMatrix 直接生成 [0,1] FP16 A,B 矩阵到 a_half/b_half
@@ -164,9 +163,6 @@ void thread_worker(ThreadArg *targ) {
             for (BLASINT i = 0; i < b_size; i++)
                 b_buf[i] = static_cast<float>(b_half[i]);
 
-            fail_info.alpha = alpha;
-            fail_info.beta = beta;
-
             /* 4. impl: stub 内部将 FP16→float→cblas_sgemm */
             cblas_shgemm(order, transA, transB, m, n, k, alpha, a_half, lda,
                         b_half, ldb, beta, c_impl_buf, ldc);
@@ -175,8 +171,9 @@ void thread_worker(ThreadArg *targ) {
             cblas_sgemm_ref(order, transA, transB, m, n, k, alpha, a_buf, lda,
                             b_buf, ldb, beta, c_ref_buf, ldc);
 
-            passed = compare_matrices(c_impl_buf, c_ref_buf, order, m, n, ldc,
-                                      SHGEMM_TOLERANCE, &fail_info);
+            passed = CheckMatrixResult(c_ref_buf, c_impl_buf, m, n, ldc,
+                                       SHGEMM_TOLERANCE, false,
+                                       order == CblasRowMajor);
         } else if (targ->precision == PrecisionType::HGEMM) {
             /* HGEMM 路径 — 全 FP16 (alpha/beta/A/B/C 都是 float16_t)
              * 1. InitMatrix → a_half, b_half (FP16 A,B)
@@ -206,20 +203,15 @@ void thread_worker(ThreadArg *targ) {
             float16_t alpha_half = static_cast<float16_t>(alpha);
             float16_t beta_half = static_cast<float16_t>(beta);
 
-            fail_info.alpha = alpha;
-            fail_info.beta = beta;
-
             cblas_hgemm(order, transA, transB, m, n, k, alpha_half, a_half, lda,
                         b_half, ldb, beta_half, c_half, ldc);
 
             cblas_sgemm_ref(order, transA, transB, m, n, k, alpha, a_buf, lda,
                             b_buf, ldb, beta, c_ref_buf, ldc);
 
-            for (BLASINT i = 0; i < c_size; i++)
-                c_impl_buf[i] = static_cast<float>(c_half[i]);
-
-            passed = compare_matrices(c_impl_buf, c_ref_buf, order, m, n, ldc,
-                                      HGEMM_TOLERANCE, &fail_info);
+            passed = CheckMatrixResult(c_ref_buf, c_half, m, n, ldc,
+                                       HGEMM_TOLERANCE, false,
+                                       order == CblasRowMajor);
         } else if (targ->precision == PrecisionType::BGEMM) {
             /* BGEMM 路径 — 全 BF16 (alpha/beta/A/B/C 都是 bfloat16_t)
              * 同 HGEMM 但使用 BF16 类型
@@ -266,9 +258,6 @@ void thread_worker(ThreadArg *targ) {
             bfloat16_t alpha_bf16 = static_cast<bfloat16_t>(alpha_bits >> 16);
             bfloat16_t beta_bf16 = static_cast<bfloat16_t>(beta_bits >> 16);
 
-            fail_info.alpha = alpha;
-            fail_info.beta = beta;
-
             cblas_bgemm(order, transA, transB, m, n, k, alpha_bf16, a_bf16, lda,
                         b_bf16, ldb, beta_bf16, c_bf16, ldc);
 
@@ -280,8 +269,9 @@ void thread_worker(ThreadArg *targ) {
                 std::memcpy(&c_impl_buf[i], &bits, sizeof(float));
             }
 
-            passed = compare_matrices(c_impl_buf, c_ref_buf, order, m, n, ldc,
-                                      BGEMM_TOLERANCE, &fail_info);
+            passed = CheckMatrixResult(c_ref_buf, c_impl_buf, m, n, ldc,
+                                       BGEMM_TOLERANCE, false,
+                                       order == CblasRowMajor);
         } else {
             /* SBGEMM 路径
              * 1. InitMatrix 直接生成 [0,1] BF16 A,B 矩阵到 a_bf16/b_bf16
@@ -304,9 +294,6 @@ void thread_worker(ThreadArg *targ) {
             for (BLASINT i = 0; i < b_size; i++)
                 b_buf[i] = static_cast<float>(b_bf16[i]);
 
-            fail_info.alpha = alpha;
-            fail_info.beta = beta;
-
             /* 4. impl: stub 内部将 BF16→float→cblas_sgemm */
             cblas_sbgemm(order, transA, transB, m, n, k, alpha, a_bf16, lda,
                         b_bf16, ldb, beta, c_impl_buf, ldc);
@@ -315,8 +302,9 @@ void thread_worker(ThreadArg *targ) {
             cblas_sgemm_ref(order, transA, transB, m, n, k, alpha, a_buf, lda,
                             b_buf, ldb, beta, c_ref_buf, ldc);
 
-            passed = compare_matrices(c_impl_buf, c_ref_buf, order, m, n, ldc,
-                                      SBGEMM_TOLERANCE, &fail_info);
+            passed = CheckMatrixResult(c_ref_buf, c_impl_buf, m, n, ldc,
+                                       SBGEMM_TOLERANCE, false,
+                                       order == CblasRowMajor);
         }
 
         total_tests.fetch_add(1, std::memory_order_relaxed);

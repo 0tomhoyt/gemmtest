@@ -52,15 +52,6 @@ inline void print_failure(const FailureInfo& info) {
     std::cout << "│    α=" << info.alpha << ", β=" << info.beta << " | "
               << "lda=" << info.lda << ", ldb=" << info.ldb << ", ldc=" << info.ldc << " | "
               << "threads=" << info.num_threads << "\n";
-
-    std::cout << "│  Mismatches (" << info.num_mismatches << " shown):\n";
-    for (int idx = 0; idx < info.num_mismatches; idx++) {
-        const MismatchRecord& m = info.mismatches[idx];
-        std::cout << std::setprecision(8);
-        std::cout << "│    [" << m.i << "," << m.j << "] "
-                  << "impl=" << m.impl_val << ", ref=" << m.ref_val << ", "
-                  << "rel_err=" << m.rel_error << "\n";
-    }
     std::cout << "└─────────────────────────────────────────────────────────\n";
 }
 

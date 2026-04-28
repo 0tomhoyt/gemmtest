@@ -388,12 +388,6 @@ int main(int argc, char *argv[]) {
     /* Print failures first (if any) */
     if (failed > 0) {
         std::cout << "\n" << std::string(70, '=') << "\n";
-        std::cout << "  Failure Details (first " << failure_count << ")\n";
-        std::cout << std::string(70, '-') << "\n";
-        for (int i = 0; i < failure_count; i++) {
-            print_failure(failures[i]);
-        }
-        std::cout << std::string(70, '-') << "\n";
 
         /* Per-stage failure summary */
         if (!manual_config) {
@@ -403,7 +397,7 @@ int main(int argc, char *argv[]) {
                 int sn = failures[i].stage_num;
                 if (sn >= 1 && sn <= 30) stage_fail[sn]++;
             }
-            std::cout << "\n  Stage Failure Summary:\n";
+            std::cout << "  Stage Failure Summary:\n";
             for (int i = 0; i < failure_count; i++) {
                 int sn = failures[i].stage_num;
                 if (sn < 1 || sn > 30 || stage_fail[sn] == 0) continue;
