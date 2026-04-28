@@ -32,13 +32,15 @@ inline const char *precision_name(PrecisionType p) {
         case PrecisionType::SGEMM:  return "SGEMM";
         case PrecisionType::SHGEMM: return "SHGEMM";
         case PrecisionType::SBGEMM: return "SBGEMM";
+        case PrecisionType::HGEMM:  return "HGEMM";
+        case PrecisionType::BGEMM:  return "BGEMM";
     }
     return "?";
 }
 
 /* Print failure details */
 inline void print_failure(const FailureInfo& info) {
-    std::cout << "┌─ Test Failure [Stage " << info.stage_num << "/18 "
+    std::cout << "┌─ Test Failure [Stage " << info.stage_num << "/30 "
               << precision_name(info.precision) << " "
               << info.dim_label << " " << info.blas_label << "]\n";
     std::cout << "│  Parameters:\n";

@@ -18,8 +18,10 @@ void thread_worker(ThreadArg *targ) {
     float *c_ref_buf = targ->buffers->c_ref_ptr();
     float16_t *a_half = targ->buffers->a_half_ptr();
     float16_t *b_half = targ->buffers->b_half_ptr();
+    float16_t *c_half = targ->buffers->c_half_ptr();
     bfloat16_t *a_bf16 = targ->buffers->a_bf16_ptr();
     bfloat16_t *b_bf16 = targ->buffers->b_bf16_ptr();
+    bfloat16_t *c_bf16 = targ->buffers->c_bf16_ptr();
     size_t max_buf_size = targ->buffers->max_size;
 
     for (int iter = 0; iter < targ->iterations; iter++) {
@@ -175,6 +177,111 @@ void thread_worker(ThreadArg *targ) {
 
             passed = compare_matrices(c_impl_buf, c_ref_buf, order, m, n, ldc,
                                       SHGEMM_TOLERANCE, &fail_info);
+        } else if (targ->precision == PrecisionType::HGEMM) {
+            /* HGEMM 路径 — 全 FP16 (alpha/beta/A/B/C 都是 float16_t)
+             * 1. InitMatrix → a_half, b_half (FP16 A,B)
+             * 2. FP16 → float → a_buf, b_buf（给 ref）
+             * 3. InitMatrix → c_impl_buf (float C) → memcpy → c_ref_buf
+             * 4. float C → FP16 → c_half（给 impl 初始 C）
+             * 5. float alpha/beta → FP16
+             * 6. impl: cblas_hgemm(fp16_alpha, a_half, b_half, fp16_beta, c_half)
+             * 7. ref:  cblas_sgemm_ref(alpha, a_buf, b_buf, beta, c_ref_buf)
+             * 8. FP16 c_half → float → c_impl_buf
+             * 9. compare(c_impl_buf, c_ref_buf)
+             */
+
+            InitMatrix(a_half, a_size, iter * 3);
+            InitMatrix(b_half, b_size, iter * 3 + 1);
+
+            for (BLASINT i = 0; i < a_size; i++)
+                a_buf[i] = static_cast<float>(a_half[i]);
+            for (BLASINT i = 0; i < b_size; i++)
+                b_buf[i] = static_cast<float>(b_half[i]);
+
+            InitMatrix(c_impl_buf, c_size, iter * 3 + 2);
+            memcpy(c_ref_buf, c_impl_buf, c_size * sizeof(float));
+            for (BLASINT i = 0; i < c_size; i++)
+                c_half[i] = static_cast<float16_t>(c_impl_buf[i]);
+
+            float16_t alpha_half = static_cast<float16_t>(alpha);
+            float16_t beta_half = static_cast<float16_t>(beta);
+
+            fail_info.alpha = alpha;
+            fail_info.beta = beta;
+
+            cblas_hgemm(order, transA, transB, m, n, k, alpha_half, a_half, lda,
+                        b_half, ldb, beta_half, c_half, ldc);
+
+            cblas_sgemm_ref(order, transA, transB, m, n, k, alpha, a_buf, lda,
+                            b_buf, ldb, beta, c_ref_buf, ldc);
+
+            for (BLASINT i = 0; i < c_size; i++)
+                c_impl_buf[i] = static_cast<float>(c_half[i]);
+
+            passed = compare_matrices(c_impl_buf, c_ref_buf, order, m, n, ldc,
+                                      HGEMM_TOLERANCE, &fail_info);
+        } else if (targ->precision == PrecisionType::BGEMM) {
+            /* BGEMM 路径 — 全 BF16 (alpha/beta/A/B/C 都是 bfloat16_t)
+             * 同 HGEMM 但使用 BF16 类型
+             */
+
+            /* 用 InitMatrix 生成 [0,1] float 数据 */
+            InitMatrix(a_buf, a_size, iter * 3);
+            InitMatrix(b_buf, b_size, iter * 3 + 1);
+
+            /* float → BF16（截断低 16 位） */
+            for (BLASINT i = 0; i < a_size; i++) {
+                uint32_t bits;
+                std::memcpy(&bits, &a_buf[i], sizeof(float));
+                a_bf16[i] = static_cast<bfloat16_t>(bits >> 16);
+            }
+            for (BLASINT i = 0; i < b_size; i++) {
+                uint32_t bits;
+                std::memcpy(&bits, &b_buf[i], sizeof(float));
+                b_bf16[i] = static_cast<bfloat16_t>(bits >> 16);
+            }
+
+            /* BF16 → float（扩展回 float，给 ref 使用） */
+            for (BLASINT i = 0; i < a_size; i++) {
+                uint32_t bits = static_cast<uint32_t>(a_bf16[i]) << 16;
+                std::memcpy(&a_buf[i], &bits, sizeof(float));
+            }
+            for (BLASINT i = 0; i < b_size; i++) {
+                uint32_t bits = static_cast<uint32_t>(b_bf16[i]) << 16;
+                std::memcpy(&b_buf[i], &bits, sizeof(float));
+            }
+
+            InitMatrix(c_impl_buf, c_size, iter * 3 + 2);
+            memcpy(c_ref_buf, c_impl_buf, c_size * sizeof(float));
+            for (BLASINT i = 0; i < c_size; i++) {
+                uint32_t bits;
+                std::memcpy(&bits, &c_impl_buf[i], sizeof(float));
+                c_bf16[i] = static_cast<bfloat16_t>(bits >> 16);
+            }
+
+            /* float → BF16（位操作，兼容 bfloat16_t = uint16_t 的情况） */
+            uint32_t alpha_bits, beta_bits;
+            std::memcpy(&alpha_bits, &alpha, sizeof(float));
+            std::memcpy(&beta_bits, &beta, sizeof(float));
+            bfloat16_t alpha_bf16 = static_cast<bfloat16_t>(alpha_bits >> 16);
+            bfloat16_t beta_bf16 = static_cast<bfloat16_t>(beta_bits >> 16);
+
+            fail_info.alpha = alpha;
+            fail_info.beta = beta;
+
+            cblas_bgemm(order, transA, transB, m, n, k, alpha_bf16, a_bf16, lda,
+                        b_bf16, ldb, beta_bf16, c_bf16, ldc);
+
+            cblas_sgemm_ref(order, transA, transB, m, n, k, alpha, a_buf, lda,
+                            b_buf, ldb, beta, c_ref_buf, ldc);
+
+            for (BLASINT i = 0; i < c_size; i++) {
+                uint32_t bits = static_cast<uint32_t>(c_bf16[i]) << 16;
+                std::memcpy(&c_impl_buf[i], &bits, sizeof(float));
+            }
+
+            passed = compare_matrices(c_impl_buf, c_ref_buf, order, m, n, ldc,
+                                      BGEMM_TOLERANCE, &fail_info);
         } else {
             /* SBGEMM 路径
              * 1. InitMatrix 直接生成 [0,1] BF16 A,B 矩阵到 a_bf16/b_bf16

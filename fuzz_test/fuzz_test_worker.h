@@ -31,8 +31,10 @@ extern std::mutex fail_mutex;
 
 enum class PrecisionType {
     SGEMM,  /* 单精度 (float) */
-    SHGEMM, /* 半精度 (float16_t / FP16) */
-    SBGEMM  /* BF16 (bfloat16) */
+    SHGEMM, /* FP16 A/B + float alpha/beta/C */
+    SBGEMM, /* BF16 A/B + float alpha/beta/C */
+    HGEMM,  /* 全 FP16 (float16_t alpha/beta/A/B/C) */
+    BGEMM   /* 全 BF16 (bfloat16_t alpha/beta/A/B/C) */
 };
 extern FailureInfo failures[];
 extern int failure_count;

@@ -26,6 +26,8 @@ set(CPP_SOURCES
     fuzz_test_globals.cpp
     stubs/shgemm_stub.cpp
     stubs/sbgemm_stub.cpp
+    stubs/hgemm_stub.cpp
+    stubs/bgemm_stub.cpp
     ../include/test_util.cpp
 )
 

@@ -59,5 +59,7 @@ constexpr int BUFFER_ALIGNMENT = 64;
 constexpr float SGEMM_TOLERANCE  = 1e-4f;
 constexpr float SHGEMM_TOLERANCE = 1e-3f;
 constexpr float SBGEMM_TOLERANCE = 1e-3f;
+constexpr float HGEMM_TOLERANCE  = 5e-3f;
+constexpr float BGEMM_TOLERANCE  = 5e-2f;
 
 #endif /* FUZZ_TEST_CONFIG_H */

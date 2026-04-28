@@ -15,6 +15,18 @@
 #include "fuzz_test_worker.h"
 #include "fuzz_test_report.h"
 
+/* Helper to convert PrecisionType to BufferPrecision */
+static inline BufferPrecision precision_to_buffer_precision(PrecisionType p) {
+    switch (p) {
+        case PrecisionType::SGEMM:  return BufferPrecision::SGEMM;
+        case PrecisionType::SHGEMM: return BufferPrecision::SHGEMM;
+        case PrecisionType::SBGEMM: return BufferPrecision::SBGEMM;
+        case PrecisionType::HGEMM:  return BufferPrecision::HGEMM;
+        case PrecisionType::BGEMM:  return BufferPrecision::BGEMM;
+        default: return BufferPrecision::SGEMM;
+    }
+}
+
 /* Progress bar state */
 static std::atomic<bool> progress_running{false};
 static std::thread progress_thread;
@@ -112,8 +124,8 @@ static int run_test_stage(int num_threads, int blas_threads, int dim_range,
         targs[i].dim_label = dim_label;          /* Dimension label for failure reporting */
         targs[i].blas_label = blas_label;        /* BLAS thread mode label for failure reporting */
 
-        /* Allocate buffers for this thread */
-        targs[i].buffers = alloc_thread_buffers(MAX_DIM, MAX_LD);
+        /* Allocate buffers for this thread (based on precision type) */
+        targs[i].buffers = alloc_thread_buffers(MAX_DIM, MAX_LD, precision_to_buffer_precision(precision));
         if (!targs[i].buffers) {
             std::cerr << "Error: Failed to allocate buffers for thread " << i << "\n";
             stop_progress();
@@ -180,10 +192,12 @@ int main(int argc, char *argv[]) {
             std::cout << "Usage: " << argv[0] << " [--thread <threads>] [--iteration <total_iterations>]\n";
             std::cout << "  --thread <threads>       Number of worker threads (default: auto-calculated)\n";
             std::cout << "  --iteration <total>      Total iterations across all threads (default: 100)\n";
-            std::cout << "\nNote: Without --thread, runs eighteen-stage test (3 precisions x 3 dims x 2 BLAS modes):\n";
+            std::cout << "\nNote: Without --thread, runs thirty-stage test (5 precisions x 3 dims x 2 BLAS modes):\n";
             std::cout << "  SGEMM:  Small (1-128), Medium (1-512), Large (1-1024)\n";
             std::cout << "  SHGEMM: Small (1-128), Medium (1-512), Large (1-1024)\n";
             std::cout << "  SBGEMM: Small (1-128), Medium (1-512), Large (1-1024)\n";
+            std::cout << "  HGEMM:  Small (1-128), Medium (1-512), Large (1-1024)\n";
+            std::cout << "  BGEMM:  Small (1-128), Medium (1-512), Large (1-1024)\n";
             return 0;
         }
     }
@@ -210,7 +224,7 @@ int main(int argc, char *argv[]) {
             return 1;
         }
     } else {
-        /* 十八阶段测试：3 精度 × 3 维度 × 2 BLAS 线程模式 */
+        /* 三十阶段测试：5 精度 × 3 维度 × 2 BLAS 线程模式 */
         /* 迭代分配比例来自 fuzz_test_config.h */
         constexpr int DIM_PROB_TOTAL = DIM_PROB_SMALL + DIM_PROB_MEDIUM + DIM_PROB_LARGE;
 
@@ -218,6 +232,8 @@ int main(int argc, char *argv[]) {
         int sgemm_total = total_iterations;
         int shgemm_total = total_iterations;
         int sbgemm_total = total_iterations;
+        int hgemm_total = total_iterations;
+        int bgemm_total = total_iterations;
 
         /* 辅助 lambda：按维度概率分配 */
         auto alloc_dims = [&](int total, int& small, int& medium, int& large) {
@@ -234,6 +250,12 @@ int main(int argc, char *argv[]) {
 
         int sbgemm_small, sbgemm_medium, sbgemm_large;
         alloc_dims(sbgemm_total, sbgemm_small, sbgemm_medium, sbgemm_large);
+
+        int hgemm_small, hgemm_medium, hgemm_large;
+        alloc_dims(hgemm_total, hgemm_small, hgemm_medium, hgemm_large);
+
+        int bgemm_small, bgemm_medium, bgemm_large;
+        alloc_dims(bgemm_total, bgemm_small, bgemm_medium, bgemm_large);
 
         /* 辅助 lambda：single/multi 各半 */
         auto split_half = [](int total, int& single, int& multi) {
@@ -262,13 +284,29 @@ int main(int argc, char *argv[]) {
         split_half(sbgemm_medium, sbgemm_medium_single, sbgemm_medium_multi);
         split_half(sbgemm_large, sbgemm_large_single, sbgemm_large_multi);
 
+        int hgemm_small_single, hgemm_small_multi;
+        int hgemm_medium_single, hgemm_medium_multi;
+        int hgemm_large_single, hgemm_large_multi;
+        split_half(hgemm_small, hgemm_small_single, hgemm_small_multi);
+        split_half(hgemm_medium, hgemm_medium_single, hgemm_medium_multi);
+        split_half(hgemm_large, hgemm_large_single, hgemm_large_multi);
+
+        int bgemm_small_single, bgemm_small_multi;
+        int bgemm_medium_single, bgemm_medium_multi;
+        int bgemm_large_single, bgemm_large_multi;
+        split_half(bgemm_small, bgemm_small_single, bgemm_small_multi);
+        split_half(bgemm_medium, bgemm_medium_single, bgemm_medium_multi);
+        split_half(bgemm_large, bgemm_large_single, bgemm_large_multi);
+
         std::cout << "\n" << std::string(70, '=') << "\n";
-        std::cout << "  UniGEMM Fuzz Test - Eighteen-Stage Auto Configuration\n";
+        std::cout << "  UniGEMM Fuzz Test - Thirty-Stage Auto Configuration\n";
         std::cout << std::string(70, '-') << "\n";
-        std::cout << "  Workers=" << max_workers << " | Iterations/precision=" << total_iterations << " | Total=" << (total_iterations * 3) << "\n";
+        std::cout << "  Workers=" << max_workers << " | Iterations/precision=" << total_iterations << " | Total=" << (total_iterations * 5) << "\n";
         std::cout << "  SGEMM:  Small=" << sgemm_small << " Medium=" << sgemm_medium << " Large=" << sgemm_large << "\n";
         std::cout << "  SHGEMM: Small=" << shgemm_small << " Medium=" << shgemm_medium << " Large=" << shgemm_large << "\n";
         std::cout << "  SBGEMM: Small=" << sbgemm_small << " Medium=" << sbgemm_medium << " Large=" << sbgemm_large << "\n";
+        std::cout << "  HGEMM:  Small=" << hgemm_small << " Medium=" << hgemm_medium << " Large=" << hgemm_large << "\n";
+        std::cout << "  BGEMM:  Small=" << bgemm_small << " Medium=" << bgemm_medium << " Large=" << bgemm_large << "\n";
         std::cout << std::string(70, '=') << "\n\n";
 
         struct StageConfig {
@@ -303,6 +341,20 @@ int main(int argc, char *argv[]) {
             {16, "Medium", "SBGEMM", DIM_RANGE_MEDIUM, 0, sbgemm_medium_multi,   PrecisionType::SBGEMM},
             {17, "Large",  "SBGEMM", DIM_RANGE_LARGE,  1, sbgemm_large_single,  PrecisionType::SBGEMM},
             {18, "Large",  "SBGEMM", DIM_RANGE_LARGE,  0, sbgemm_large_multi,    PrecisionType::SBGEMM},
+            /* HGEMM 阶段 (19-24) */
+            {19, "Small",  "HGEMM",  DIM_RANGE_SMALL,  1, hgemm_small_single,   PrecisionType::HGEMM},
+            {20, "Small",  "HGEMM",  DIM_RANGE_SMALL,  0, hgemm_small_multi,     PrecisionType::HGEMM},
+            {21, "Medium", "HGEMM",  DIM_RANGE_MEDIUM, 1, hgemm_medium_single,  PrecisionType::HGEMM},
+            {22, "Medium", "HGEMM",  DIM_RANGE_MEDIUM, 0, hgemm_medium_multi,    PrecisionType::HGEMM},
+            {23, "Large",  "HGEMM",  DIM_RANGE_LARGE,  1, hgemm_large_single,   PrecisionType::HGEMM},
+            {24, "Large",  "HGEMM",  DIM_RANGE_LARGE,  0, hgemm_large_multi,     PrecisionType::HGEMM},
+            /* BGEMM 阶段 (25-30) */
+            {25, "Small",  "BGEMM",  DIM_RANGE_SMALL,  1, bgemm_small_single,   PrecisionType::BGEMM},
+            {26, "Small",  "BGEMM",  DIM_RANGE_SMALL,  0, bgemm_small_multi,     PrecisionType::BGEMM},
+            {27, "Medium", "BGEMM",  DIM_RANGE_MEDIUM, 1, bgemm_medium_single,  PrecisionType::BGEMM},
+            {28, "Medium", "BGEMM",  DIM_RANGE_MEDIUM, 0, bgemm_medium_multi,    PrecisionType::BGEMM},
+            {29, "Large",  "BGEMM",  DIM_RANGE_LARGE,  1, bgemm_large_single,   PrecisionType::BGEMM},
+            {30, "Large",  "BGEMM",  DIM_RANGE_LARGE,  0, bgemm_large_multi,     PrecisionType::BGEMM},
         };
 
         for (const auto& s : stages) {
@@ -311,7 +363,7 @@ int main(int argc, char *argv[]) {
             auto stage_start = std::chrono::steady_clock::now();
 
             const char *blas_label = (s.blas_threads == 1) ? "single thread" : "multi thread";
-            std::cout << "┌─ Stage " << s.stage_num << "/18 " << s.dim_label << " "
+            std::cout << "┌─ Stage " << s.stage_num << "/30 " << s.dim_label << " "
                       << s.precision_label << " " << blas_label << "\n";
 
             if (run_test_stage(max_workers, s.blas_threads, s.dim_range, s.iters, seed, s.precision,
@@ -346,16 +398,16 @@ int main(int argc, char *argv[]) {
         /* Per-stage failure summary */
         if (!manual_config) {
             /* Count failures per stage from stored failure records */
-            int stage_fail[20] = {};  /* indexed by stage_num */
+            int stage_fail[32] = {};  /* indexed by stage_num */
             for (int i = 0; i < failure_count; i++) {
                 int sn = failures[i].stage_num;
-                if (sn >= 1 && sn <= 18) stage_fail[sn]++;
+                if (sn >= 1 && sn <= 30) stage_fail[sn]++;
             }
             std::cout << "\n  Stage Failure Summary:\n";
             for (int i = 0; i < failure_count; i++) {
                 int sn = failures[i].stage_num;
-                if (sn < 1 || sn > 18 || stage_fail[sn] == 0) continue;
-                std::cout << "    Stage " << std::setw(2) << sn << "/18  "
+                if (sn < 1 || sn > 30 || stage_fail[sn] == 0) continue;
+                std::cout << "    Stage " << std::setw(2) << sn << "/30  "
                           << std::setw(6) << precision_name(failures[i].precision) << "  "
                           << std::setw(6) << failures[i].dim_label << "  "
                           << std::setw(13) << failures[i].blas_label << ": "
