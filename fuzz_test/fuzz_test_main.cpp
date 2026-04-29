@@ -5,6 +5,7 @@
 #include <chrono>
 #include <cstring>
 #include <cstdlib>
+#include <cctype>
 #include <array>
 #include <atomic>
 #include <mutex>
@@ -175,24 +176,72 @@ int main(int argc, char *argv[]) {
     bool manual_config = false;
     int manual_blas_threads = -1;
 
+    /* Precision filter: set of enabled precision types */
+    struct PrecSet {
+        bool sgemm = true, shgemm = true, sbgemm = true, hgemm = true, bgemm = true;
+        bool empty() const { return !(sgemm || shgemm || sbgemm || hgemm || bgemm); }
+        bool contains(const char *label) const {
+            if (strcmp(label, "SGEMM") == 0) return sgemm;
+            if (strcmp(label, "SHGEMM") == 0) return shgemm;
+            if (strcmp(label, "SBGEMM") == 0) return sbgemm;
+            if (strcmp(label, "HGEMM") == 0) return hgemm;
+            if (strcmp(label, "BGEMM") == 0) return bgemm;
+            return false;
+        }
+    } precision_filter;
+
     /* Parse command line arguments */
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "--thread") == 0 && i + 1 < argc) {
             num_threads = std::atoi(argv[i + 1]);
-            manual_config = true;  /* 手动配置时跳过多阶段测试 */
+            manual_config = true;
             i++;
         } else if (strcmp(argv[i], "--iteration") == 0 && i + 1 < argc) {
             total_iterations = std::atoi(argv[i + 1]);
             i++;
         } else if (strcmp(argv[i], "--blas-threads") == 0 && i + 1 < argc) {
             manual_blas_threads = std::atoi(argv[i + 1]);
-            manual_config = true;  /* 手动配置时跳过多阶段测试 */
+            manual_config = true;
+            i++;
+        } else if (strcmp(argv[i], "--precision") == 0 && i + 1 < argc) {
+            /* Reset all to false, then enable specified ones */
+            precision_filter.sgemm = false;
+            precision_filter.shgemm = false;
+            precision_filter.sbgemm = false;
+            precision_filter.hgemm = false;
+            precision_filter.bgemm = false;
+
+            char *list = strdup(argv[i + 1]);
+            char *token = strtok(list, ",");
+            while (token != nullptr) {
+                /* Trim whitespace */
+                while (*token == ' ' || *token == '\t') token++;
+                char *end = token + strlen(token) - 1;
+                while (end > token && (*end == ' ' || *end == '\t')) *end-- = '\0';
+
+                /* Convert to uppercase for case-insensitive matching */
+                for (char *p = token; *p; p++) *p = toupper(*p);
+
+                if (strcmp(token, "SGEMM") == 0) precision_filter.sgemm = true;
+                else if (strcmp(token, "SHGEMM") == 0) precision_filter.shgemm = true;
+                else if (strcmp(token, "SBGEMM") == 0) precision_filter.sbgemm = true;
+                else if (strcmp(token, "HGEMM") == 0) precision_filter.hgemm = true;
+                else if (strcmp(token, "BGEMM") == 0) precision_filter.bgemm = true;
+                else if (strcmp(token, "ALL") == 0) {
+                    precision_filter.sgemm = precision_filter.shgemm = true;
+                    precision_filter.sbgemm = precision_filter.hgemm = precision_filter.bgemm = true;
+                }
+                token = strtok(nullptr, ",");
+            }
+            free(list);
             i++;
         } else if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0) {
-            std::cout << "Usage: " << argv[0] << " [--thread <threads>] [--iteration <total_iterations>]\n";
+            std::cout << "Usage: " << argv[0] << " [--thread <threads>] [--iteration <total>] [--precision <list>]\n";
             std::cout << "  --thread <threads>       Number of worker threads (default: auto-calculated)\n";
-            std::cout << "  --iteration <total>      Total iterations across all threads (default: 100)\n";
-            std::cout << "\nNote: Without --thread, runs thirty-stage test (5 precisions x 3 dims x 2 BLAS modes):\n";
+            std::cout << "  --iteration <total>      Total iterations per precision (default: 100)\n";
+            std::cout << "  --precision <list>      Comma-separated precision types (default: all)\n";
+            std::cout << "                          Options: sgemm, shgemm, sbgemm, hgemm, bgemm, all\n";
+            std::cout << "\nNote: Without --thread, runs multi-stage test (5 precisions x 3 dims x 2 BLAS modes):\n";
             std::cout << "  SGEMM:  Small (1-128), Medium (1-512), Large (1-1024)\n";
             std::cout << "  SHGEMM: Small (1-128), Medium (1-512), Large (1-1024)\n";
             std::cout << "  SBGEMM: Small (1-128), Medium (1-512), Large (1-1024)\n";
@@ -359,6 +408,8 @@ int main(int argc, char *argv[]) {
 
         for (const auto& s : stages) {
             if (s.iters <= 0) continue;
+            /* Skip if precision not in filter */
+            if (!precision_filter.contains(s.precision_label)) continue;
 
             auto stage_start = std::chrono::steady_clock::now();
 

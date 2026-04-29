@@ -320,7 +320,7 @@ void thread_worker(ThreadArg *targ) {
             }
 
             /* Print failure parameters to stderr (avoids mixing with progress bar) */
-            std::fprintf(stderr, "  FAIL [%s] %s transA=%s transB=%s M=%d N=%d K=%d lda=%d ldb=%d ldc=%d\n",
+            std::fprintf(stderr, "  ERROR: [%s] %s transA=%s transB=%s M=%d N=%d K=%d lda=%d ldb=%d ldc=%d\n",
                         precision_name(targ->precision),
                         order_name(order),
                         trans_name(transA), trans_name(transB),
