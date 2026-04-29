@@ -46,10 +46,6 @@ void PrintMatrix(const char *name, const T *data, int rows, int cols, int ldc, b
 template<typename T>
 void InitMatrix(T *data, size_t count, unsigned int seed = 0);
 
-template<typename T1, typename T2>
-bool CheckMatrixResult(const T1 *ref, const T2 *test, int rows, int cols, int ldc,
-                    double eps, bool verbose, bool rowMajor);
-
 static inline int ReadIntEnvParam(const char *env);
 int GetNumThreads();
 

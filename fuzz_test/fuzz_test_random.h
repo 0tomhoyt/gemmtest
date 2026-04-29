@@ -7,6 +7,8 @@
 #include <random>
 #include <array>
 #include <algorithm>
+#include <cstdio>
+#include <cmath>
 
 /* Random parameter generator class */
 class RandomGenerator {
@@ -165,5 +167,44 @@ private:
         0.0f, 1.0f, -1.0f, 2.0f, 0.5f, -0.5f, 0.25f, -2.0f
     };
 };
+
+/* Matrix comparison utility
+ * Compares ref vs test matrices with relative tolerance.
+ * Returns true if all elements match within eps, false otherwise.
+ * verbose=true: prints up to 20 mismatches with position, values, and relative error.
+ */
+template <typename T1, typename T2>
+bool MatrixCompare(const T1 *ref, const T2 *test, int rows, int cols,
+                   int ldc, double eps, bool verbose, bool rowMajor) {
+    int mismatch_count = 0;
+    const int max_print = 20;
+
+    for (int i = 0; i < rows; i++) {
+        for (int j = 0; j < cols; j++) {
+            int idx = rowMajor ? (i * ldc + j) : (j * ldc + i);
+            double val_ref  = static_cast<double>(ref[idx]);
+            double val_test = static_cast<double>(test[idx]);
+
+            double max_val = std::max({std::fabs(val_ref), std::fabs(val_test), 1.0});
+            double diff = std::fabs(val_ref - val_test);
+
+            if (diff >= eps * max_val) {
+                mismatch_count++;
+                if (verbose && mismatch_count <= max_print) {
+                    double rel_err = diff / max_val;
+                    std::printf("  [%d,%d] ref=%.8g, test=%.8g, rel_err=%.8g\n",
+                                i, j, val_ref, val_test, rel_err);
+                }
+            }
+        }
+    }
+
+    if (verbose && mismatch_count > max_print) {
+        std::printf("  ... %d more mismatches (total %d)\n",
+                     mismatch_count - max_print, mismatch_count);
+    }
+
+    return mismatch_count == 0;
+}
 
 #endif /* FUZZ_TEST_RANDOM_H */

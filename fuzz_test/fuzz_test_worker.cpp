@@ -123,7 +123,7 @@ void thread_worker(ThreadArg *targ) {
             cblas_sgemm_ref(order, transA, transB, m, n, k, alpha, a_buf, lda,
                             b_buf, ldb, beta, c_ref_buf, ldc);
 
-            passed = CheckMatrixResult(c_ref_buf, c_impl_buf, m, n, ldc,
+            passed = MatrixCompare(c_ref_buf, c_impl_buf, m, n, ldc,
                                        SGEMM_TOLERANCE, false,
                                        order == CblasRowMajor);
         } else if (targ->precision == PrecisionType::SHGEMM) {
@@ -156,7 +156,7 @@ void thread_worker(ThreadArg *targ) {
             cblas_sgemm_ref(order, transA, transB, m, n, k, alpha, a_buf, lda,
                             b_buf, ldb, beta, c_ref_buf, ldc);
 
-            passed = CheckMatrixResult(c_ref_buf, c_impl_buf, m, n, ldc,
+            passed = MatrixCompare(c_ref_buf, c_impl_buf, m, n, ldc,
                                        SHGEMM_TOLERANCE, false,
                                        order == CblasRowMajor);
         } else if (targ->precision == PrecisionType::HGEMM) {
@@ -194,7 +194,7 @@ void thread_worker(ThreadArg *targ) {
             cblas_sgemm_ref(order, transA, transB, m, n, k, alpha, a_buf, lda,
                             b_buf, ldb, beta, c_ref_buf, ldc);
 
-            passed = CheckMatrixResult(c_ref_buf, c_half, m, n, ldc,
+            passed = MatrixCompare(c_ref_buf, c_half, m, n, ldc,
                                        HGEMM_TOLERANCE, false,
                                        order == CblasRowMajor);
         } else if (targ->precision == PrecisionType::BGEMM) {
@@ -254,7 +254,7 @@ void thread_worker(ThreadArg *targ) {
                 std::memcpy(&c_impl_buf[i], &bits, sizeof(float));
             }
 
-            passed = CheckMatrixResult(c_ref_buf, c_impl_buf, m, n, ldc,
+            passed = MatrixCompare(c_ref_buf, c_impl_buf, m, n, ldc,
                                        BGEMM_TOLERANCE, false,
                                        order == CblasRowMajor);
         } else {
@@ -287,7 +287,7 @@ void thread_worker(ThreadArg *targ) {
             cblas_sgemm_ref(order, transA, transB, m, n, k, alpha, a_buf, lda,
                             b_buf, ldb, beta, c_ref_buf, ldc);
 
-            passed = CheckMatrixResult(c_ref_buf, c_impl_buf, m, n, ldc,
+            passed = MatrixCompare(c_ref_buf, c_impl_buf, m, n, ldc,
                                        SBGEMM_TOLERANCE, false,
                                        order == CblasRowMajor);
         }
