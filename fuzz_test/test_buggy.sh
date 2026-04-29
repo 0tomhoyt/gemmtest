@@ -37,7 +37,7 @@ echo "   Expected: Should detect errors and report failures"
 echo ""
 
 # Run test with moderate iterations to catch bugs quickly
-./out/fuzz_test --thread 2 --iteration 10
+./out/fuzz_test --iteration 100
 
 echo ""
 echo "=========================================="

@@ -12,9 +12,5 @@ std::atomic<int> completed_small{0};
 std::atomic<int> completed_medium{0};
 std::atomic<int> completed_large{0};
 
-/* Mutex for failure log */
-std::mutex fail_mutex;
-
-/* Failure log array */
-FailureInfo failures[MAX_FAIL_LOGS];
-int failure_count = 0;
+/* Per-stage failure counts */
+std::atomic<int> stage_fail_count[MAX_STAGES];

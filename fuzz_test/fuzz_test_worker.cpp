@@ -103,23 +103,6 @@ void thread_worker(ThreadArg *targ) {
 
         /* Run implementation and reference based on precision type */
         bool passed = false;
-        FailureInfo fail_info{};
-        fail_info.stage_num = targ->stage_num;
-        fail_info.precision = targ->precision;
-        fail_info.dim_label = targ->dim_label;
-        fail_info.blas_label = targ->blas_label;
-        fail_info.order = order;
-        fail_info.transA = transA;
-        fail_info.transB = transB;
-        fail_info.m = m;
-        fail_info.n = n;
-        fail_info.k = k;
-        fail_info.lda = lda;
-        fail_info.ldb = ldb;
-        fail_info.ldc = ldc;
-        fail_info.num_threads = num_threads;
-        fail_info.alpha = alpha;
-        fail_info.beta = beta;
 
         if (targ->precision == PrecisionType::SGEMM) {
             /* SGEMM 路径
@@ -328,10 +311,10 @@ void thread_worker(ThreadArg *targ) {
         } else {
             failed_tests.fetch_add(1, std::memory_order_relaxed);
 
-            /* Log failure */
-            std::lock_guard<std::mutex> lock(fail_mutex);
-            if (failure_count < MAX_FAIL_LOGS) {
-                failures[failure_count++] = fail_info;
+            /* Increment per-stage failure counter */
+            int sn = targ->stage_num;
+            if (sn >= 1 && sn < MAX_STAGES) {
+                stage_fail_count[sn].fetch_add(1, std::memory_order_relaxed);
             }
         }
     }

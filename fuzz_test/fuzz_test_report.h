@@ -3,7 +3,6 @@
 
 #include "gemm_benchmark.h"
 #include "unigemm_920f.h"
-#include "fuzz_test_failure.h"
 #include "fuzz_test_worker.h"
 #include <iostream>
 #include <iomanip>
@@ -36,23 +35,6 @@ inline const char *precision_name(PrecisionType p) {
         case PrecisionType::BGEMM:  return "BGEMM";
     }
     return "?";
-}
-
-/* Print failure details */
-inline void print_failure(const FailureInfo& info) {
-    std::cout << "┌─ Test Failure [Stage " << info.stage_num << "/30 "
-              << precision_name(info.precision) << " "
-              << info.dim_label << " " << info.blas_label << "]\n";
-    std::cout << "│  Parameters:\n";
-    std::cout << "│    " << order_name(info.order) << " | "
-              << "transA=" << trans_name(info.transA) << ", "
-              << "transB=" << trans_name(info.transB) << " | "
-              << "dims=[" << info.m << "," << info.n << "," << info.k << "]\n";
-    std::cout << std::setprecision(6);
-    std::cout << "│    α=" << info.alpha << ", β=" << info.beta << " | "
-              << "lda=" << info.lda << ", ldb=" << info.ldb << ", ldc=" << info.ldc << " | "
-              << "threads=" << info.num_threads << "\n";
-    std::cout << "└─────────────────────────────────────────────────────────\n";
 }
 
 #endif /* FUZZ_TEST_REPORT_H */

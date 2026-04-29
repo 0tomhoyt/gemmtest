@@ -391,22 +391,56 @@ int main(int argc, char *argv[]) {
 
         /* Per-stage failure summary */
         if (!manual_config) {
-            /* Count failures per stage from stored failure records */
-            int stage_fail[32] = {};  /* indexed by stage_num */
-            for (int i = 0; i < failure_count; i++) {
-                int sn = failures[i].stage_num;
-                if (sn >= 1 && sn <= 30) stage_fail[sn]++;
-            }
+            /* Stage metadata: precision, dim, blas mode for stages 1-30 */
+            static const char *stage_meta[][3] = {
+                /* 0=placeholder */ {"", "", ""},
+                /* SGEMM 1-6 */
+                {"SGEMM",  "Small",  "single"},   /* 1 */
+                {"SGEMM",  "Small",  "multi"},    /* 2 */
+                {"SGEMM",  "Medium", "single"},   /* 3 */
+                {"SGEMM",  "Medium", "multi"},    /* 4 */
+                {"SGEMM",  "Large",  "single"},   /* 5 */
+                {"SGEMM",  "Large",  "multi"},    /* 6 */
+                /* SHGEMM 7-12 */
+                {"SHGEMM", "Small",  "single"},   /* 7 */
+                {"SHGEMM", "Small",  "multi"},    /* 8 */
+                {"SHGEMM", "Medium", "single"},   /* 9 */
+                {"SHGEMM", "Medium", "multi"},    /* 10 */
+                {"SHGEMM", "Large",  "single"},   /* 11 */
+                {"SHGEMM", "Large",  "multi"},    /* 12 */
+                /* SBGEMM 13-18 */
+                {"SBGEMM", "Small",  "single"},   /* 13 */
+                {"SBGEMM", "Small",  "multi"},    /* 14 */
+                {"SBGEMM", "Medium", "single"},   /* 15 */
+                {"SBGEMM", "Medium", "multi"},    /* 16 */
+                {"SBGEMM", "Large",  "single"},   /* 17 */
+                {"SBGEMM", "Large",  "multi"},    /* 18 */
+                /* HGEMM 19-24 */
+                {"HGEMM",  "Small",  "single"},   /* 19 */
+                {"HGEMM",  "Small",  "multi"},    /* 20 */
+                {"HGEMM",  "Medium", "single"},   /* 21 */
+                {"HGEMM",  "Medium", "multi"},    /* 22 */
+                {"HGEMM",  "Large",  "single"},   /* 23 */
+                {"HGEMM",  "Large",  "multi"},    /* 24 */
+                /* BGEMM 25-30 */
+                {"BGEMM",  "Small",  "single"},   /* 25 */
+                {"BGEMM",  "Small",  "multi"},    /* 26 */
+                {"BGEMM",  "Medium", "single"},   /* 27 */
+                {"BGEMM",  "Medium", "multi"},    /* 28 */
+                {"BGEMM",  "Large",  "single"},   /* 29 */
+                {"BGEMM",  "Large",  "multi"},    /* 30 */
+            };
             std::cout << "  Stage Failure Summary:\n";
-            for (int i = 0; i < failure_count; i++) {
-                int sn = failures[i].stage_num;
-                if (sn < 1 || sn > 30 || stage_fail[sn] == 0) continue;
+            for (int sn = 1; sn <= 30; sn++) {
+                int fc = stage_fail_count[sn].load(std::memory_order_relaxed);
+                if (fc == 0) continue;
+                const char *blas_label = (strcmp(stage_meta[sn][2], "single") == 0)
+                                         ? "single thread" : "multi thread";
                 std::cout << "    Stage " << std::setw(2) << sn << "/30  "
-                          << std::setw(6) << precision_name(failures[i].precision) << "  "
-                          << std::setw(6) << failures[i].dim_label << "  "
-                          << std::setw(13) << failures[i].blas_label << ": "
-                          << std::setw(5) << stage_fail[sn] << " failures\n";
-                stage_fail[sn] = 0;  /* only print once per stage */
+                          << std::setw(6) << stage_meta[sn][0] << "  "
+                          << std::setw(6) << stage_meta[sn][1] << "  "
+                          << std::setw(13) << blas_label << ": "
+                          << std::setw(5) << fc << " failures\n";
             }
         }
     }

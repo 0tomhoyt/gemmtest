@@ -2,11 +2,9 @@
 #define FUZZ_TEST_WORKER_H
 
 #include "fuzz_test_config.h"
-#include "fuzz_test_failure.h"
 #include "fuzz_test_buffer.h"
 #include <thread>
 #include <atomic>
-#include <mutex>
 #include <memory>
 
 /* Atomic counters for statistics */
@@ -20,11 +18,6 @@ extern std::atomic<int> completed_small;
 extern std::atomic<int> completed_medium;
 extern std::atomic<int> completed_large;
 
-/* Mutex for failure log */
-extern std::mutex fail_mutex;
-
-/* Failure log array */
-
 /* ============================================================
  * 精度类型枚举 (Precision Type Enumeration)
  * ============================================================ */
@@ -36,8 +29,10 @@ enum class PrecisionType {
     HGEMM,  /* 全 FP16 (float16_t alpha/beta/A/B/C) */
     BGEMM   /* 全 BF16 (bfloat16_t alpha/beta/A/B/C) */
 };
-extern FailureInfo failures[];
-extern int failure_count;
+
+/* Per-stage failure counts (indexed by stage_num, 1-30) */
+constexpr int MAX_STAGES = 32;
+extern std::atomic<int> stage_fail_count[];
 
 /* Thread worker function arguments */
 struct ThreadArg {
