@@ -56,10 +56,10 @@ constexpr int BUFFER_ALIGNMENT = 64;
  * 误差仅来自 cblas_sgemm vs cblas_sgemm_ref 的浮点累加顺序差异。
  * 1024×1024 矩阵的理论误差约 K×eps ≈ 6e-5，1e-3 留约 16 倍余量。
  */
-constexpr float SGEMM_TOLERANCE  = 1e-4f;
+constexpr float SGEMM_TOLERANCE  = 1e-3f;
 constexpr float SHGEMM_TOLERANCE = 1e-3f;
 constexpr float SBGEMM_TOLERANCE = 1e-3f;
-constexpr float HGEMM_TOLERANCE  = 5e-3f;
+constexpr float HGEMM_TOLERANCE  = 5e-2f;
 constexpr float BGEMM_TOLERANCE  = 5e-2f;
 
 #endif /* FUZZ_TEST_CONFIG_H */

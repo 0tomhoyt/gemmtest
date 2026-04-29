@@ -1,5 +1,6 @@
 #include "fuzz_test_worker.h"
 #include "fuzz_test_random.h"
+#include "fuzz_test_report.h"
 #include "gemm_benchmark.h"
 #include "unigemm_920f.h"
 #include "../openblas.h"
@@ -7,6 +8,7 @@
 #include <cstring>
 #include <cstdlib>
 #include <cstdint>
+#include <cstdio>
 
 /* Thread worker function implementation */
 void thread_worker(ThreadArg *targ) {
@@ -316,6 +318,14 @@ void thread_worker(ThreadArg *targ) {
             if (sn >= 1 && sn < MAX_STAGES) {
                 stage_fail_count[sn].fetch_add(1, std::memory_order_relaxed);
             }
+
+            /* Print failure parameters to stderr (avoids mixing with progress bar) */
+            std::fprintf(stderr, "  FAIL [%s] %s transA=%s transB=%s M=%d N=%d K=%d lda=%d ldb=%d ldc=%d\n",
+                        precision_name(targ->precision),
+                        order_name(order),
+                        trans_name(transA), trans_name(transB),
+                        (int)m, (int)n, (int)k,
+                        (int)lda, (int)ldb, (int)ldc);
         }
     }
 }
