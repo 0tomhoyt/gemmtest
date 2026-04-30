@@ -124,7 +124,7 @@ void thread_worker(ThreadArg *targ) {
                             b_buf, ldb, beta, c_ref_buf, ldc);
 
             passed = MatrixCompare(c_ref_buf, c_impl_buf, m, n, ldc,
-                                       SGEMM_TOLERANCE, false,
+                                       SGEMM_TOLERANCE, true,
                                        order == CblasRowMajor);
         } else if (targ->precision == PrecisionType::SHGEMM) {
             /* SHGEMM 路径
@@ -157,7 +157,7 @@ void thread_worker(ThreadArg *targ) {
                             b_buf, ldb, beta, c_ref_buf, ldc);
 
             passed = MatrixCompare(c_ref_buf, c_impl_buf, m, n, ldc,
-                                       SHGEMM_TOLERANCE, false,
+                                       SHGEMM_TOLERANCE, true,
                                        order == CblasRowMajor);
         } else if (targ->precision == PrecisionType::HGEMM) {
             /* HGEMM 路径 — 全 FP16 (alpha/beta/A/B/C 都是 float16_t)
@@ -195,7 +195,7 @@ void thread_worker(ThreadArg *targ) {
                             b_buf, ldb, beta, c_ref_buf, ldc);
 
             passed = MatrixCompare(c_ref_buf, c_half, m, n, ldc,
-                                       HGEMM_TOLERANCE, false,
+                                       HGEMM_TOLERANCE, true,
                                        order == CblasRowMajor);
         } else if (targ->precision == PrecisionType::BGEMM) {
             /* BGEMM 路径 — 全 BF16 (alpha/beta/A/B/C 都是 bfloat16_t)
@@ -255,7 +255,7 @@ void thread_worker(ThreadArg *targ) {
             }
 
             passed = MatrixCompare(c_ref_buf, c_impl_buf, m, n, ldc,
-                                       BGEMM_TOLERANCE, false,
+                                       BGEMM_TOLERANCE, true,
                                        order == CblasRowMajor);
         } else {
             /* SBGEMM 路径
@@ -288,7 +288,7 @@ void thread_worker(ThreadArg *targ) {
                             b_buf, ldb, beta, c_ref_buf, ldc);
 
             passed = MatrixCompare(c_ref_buf, c_impl_buf, m, n, ldc,
-                                       SBGEMM_TOLERANCE, false,
+                                       SBGEMM_TOLERANCE, true,
                                        order == CblasRowMajor);
         }
 

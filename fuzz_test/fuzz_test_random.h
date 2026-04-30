@@ -8,6 +8,9 @@
 #include <array>
 #include <algorithm>
 #include <cstdio>
+#include <mutex>
+
+extern std::mutex console_mutex;
 #include <cmath>
 
 /* Random parameter generator class */
@@ -192,6 +195,7 @@ bool MatrixCompare(const T1 *ref, const T2 *test, int rows, int cols,
                 mismatch_count++;
                 if (verbose && mismatch_count <= max_print) {
                     double rel_err = diff / max_val;
+                    std::lock_guard<std::mutex> lock(console_mutex);
                     std::printf("  [%d,%d] ref=%.8g, test=%.8g, rel_err=%.8g\n",
                                 i, j, val_ref, val_test, rel_err);
                 }
@@ -200,6 +204,7 @@ bool MatrixCompare(const T1 *ref, const T2 *test, int rows, int cols,
     }
 
     if (verbose && mismatch_count > max_print) {
+        std::lock_guard<std::mutex> lock(console_mutex);
         std::printf("  ... %d more mismatches (total %d)\n",
                      mismatch_count - max_print, mismatch_count);
     }
