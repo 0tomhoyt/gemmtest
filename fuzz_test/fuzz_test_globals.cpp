@@ -1,5 +1,9 @@
+#include <mutex>
 #include "fuzz_test_worker.h"
 #include "fuzz_test_config.h"
+
+/* Synchronizes progress bar (stdout) with error output (stderr) */
+std::mutex console_mutex;
 
 /* Atomic counters for statistics */
 std::atomic<int> total_tests{0};

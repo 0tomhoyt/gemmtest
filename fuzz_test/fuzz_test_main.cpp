@@ -47,19 +47,22 @@ static void progress_bar_func() {
             if (total_ratio > 1.0f) total_ratio = 1.0f;
             int total_filled = static_cast<int>(total_ratio * bar_width);
 
-            /* Build single-line progress display */
-            std::cout << "\r  ";
-            std::cout << "S[" << std::setw(3) << small << "] ";
-            std::cout << "M[" << std::setw(3) << medium << "] ";
-            std::cout << "L[" << std::setw(3) << large << "] ";
-            std::cout << " [";
-            for (int i = 0; i < bar_width; i++) {
-                if (i < total_filled) std::cout << "=";
-                else if (i == total_filled) std::cout << ">";
-                else std::cout << " ";
+            /* Build single-line progress display (synchronized with error output) */
+            {
+                std::lock_guard<std::mutex> lock(console_mutex);
+                std::cout << "\r  ";
+                std::cout << "S[" << std::setw(3) << small << "] ";
+                std::cout << "M[" << std::setw(3) << medium << "] ";
+                std::cout << "L[" << std::setw(3) << large << "] ";
+                std::cout << " [";
+                for (int i = 0; i < bar_width; i++) {
+                    if (i < total_filled) std::cout << "=";
+                    else if (i == total_filled) std::cout << ">";
+                    else std::cout << " ";
+                }
+                std::cout << "] " << std::setw(3) << static_cast<int>(total_ratio * 100) << "% ("
+                          << std::setw(4) << current << "/" << progress_target << ")" << std::flush;
             }
-            std::cout << "] " << std::setw(3) << static_cast<int>(total_ratio * 100) << "% ("
-                      << std::setw(4) << current << "/" << progress_target << ")" << std::flush;
         }
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }

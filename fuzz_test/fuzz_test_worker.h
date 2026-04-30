@@ -5,7 +5,11 @@
 #include "fuzz_test_buffer.h"
 #include <thread>
 #include <atomic>
+#include <mutex>
 #include <memory>
+
+/* Synchronizes progress bar (stdout) with error output (stderr) */
+extern std::mutex console_mutex;
 
 /* Atomic counters for statistics */
 extern std::atomic<int> total_tests;

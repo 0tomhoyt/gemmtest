@@ -319,13 +319,17 @@ void thread_worker(ThreadArg *targ) {
                 stage_fail_count[sn].fetch_add(1, std::memory_order_relaxed);
             }
 
-            /* Print failure parameters to stderr (avoids mixing with progress bar) */
-            std::fprintf(stderr, "  ERROR: [%s] %s transA=%s transB=%s M=%d N=%d K=%d lda=%d ldb=%d ldc=%d\n",
-                        precision_name(targ->precision),
-                        order_name(order),
-                        trans_name(transA), trans_name(transB),
-                        (int)m, (int)n, (int)k,
-                        (int)lda, (int)ldb, (int)ldc);
+            /* Print failure to stderr, synchronized with progress bar */
+            {
+                std::lock_guard<std::mutex> lock(console_mutex);
+                std::fprintf(stderr, "\r%80s\r", "");  /* clear the progress bar line */
+                std::fprintf(stderr, "  ERROR: [%s] %s transA=%s transB=%s M=%d N=%d K=%d lda=%d ldb=%d ldc=%d\n",
+                            precision_name(targ->precision),
+                            order_name(order),
+                            trans_name(transA), trans_name(transB),
+                            (int)m, (int)n, (int)k,
+                            (int)lda, (int)ldb, (int)ldc);
+            }
         }
     }
 }
