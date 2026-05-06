@@ -9,10 +9,13 @@
 #include <cstdlib>
 #include <cstdint>
 #include <cstdio>
+#include <random>
 
 /* Thread worker function implementation */
 void thread_worker(ThreadArg *targ) {
     RandomGenerator rng(targ->rand_seed);
+    std::random_device rd;
+    int seed_offset = rd() % 64;
     float *a_buf = targ->buffers->a_ptr();
     float *b_buf = targ->buffers->b_ptr();
     float *c_impl_buf = targ->buffers->c_impl_ptr();
@@ -112,9 +115,9 @@ void thread_worker(ThreadArg *targ) {
              * 2. InitMatrix 生成 float C 矩阵，复制到 C_ref
              * 3. impl 和 ref 都使用 a_buf/b_buf
              */
-            InitMatrix(a_buf, a_size, iter * 3);
-            InitMatrix(b_buf, b_size, iter * 3 + 1);
-            InitMatrix(c_impl_buf, c_size, iter * 3 + 2);
+            InitMatrix(a_buf, a_size, iter * 3 + seed_offset);
+            InitMatrix(b_buf, b_size, iter * 3 + seed_offset + 1);
+            InitMatrix(c_impl_buf, c_size, iter * 3 + seed_offset + 2);
             memcpy(c_ref_buf, c_impl_buf, c_size * sizeof(float));
 
             cblas_sgemm(order, transA, transB, m, n, k, alpha, a_buf, lda,
@@ -135,11 +138,11 @@ void thread_worker(ThreadArg *targ) {
              */
 
             /* 1. Init FP16 A,B */
-            InitMatrix(a_half, a_size, iter * 3);
-            InitMatrix(b_half, b_size, iter * 3 + 1);
+            InitMatrix(a_half, a_size, iter * 3 + seed_offset);
+            InitMatrix(b_half, b_size, iter * 3 + seed_offset + 1);
 
             /* 2. Init float C, copy to C_ref */
-            InitMatrix(c_impl_buf, c_size, iter * 3 + 2);
+            InitMatrix(c_impl_buf, c_size, iter * 3 + seed_offset + 2);
             memcpy(c_ref_buf, c_impl_buf, c_size * sizeof(float));
 
             /* 3. FP16 → float（static_cast 扩展，给 ref 使用） */
@@ -172,15 +175,15 @@ void thread_worker(ThreadArg *targ) {
              * 9. compare(c_impl_buf, c_ref_buf)
              */
 
-            InitMatrix(a_half, a_size, iter * 3);
-            InitMatrix(b_half, b_size, iter * 3 + 1);
+            InitMatrix(a_half, a_size, iter * 3 + seed_offset);
+            InitMatrix(b_half, b_size, iter * 3 + seed_offset + 1);
 
             for (BLASINT i = 0; i < a_size; i++)
                 a_buf[i] = static_cast<float>(a_half[i]);
             for (BLASINT i = 0; i < b_size; i++)
                 b_buf[i] = static_cast<float>(b_half[i]);
 
-            InitMatrix(c_impl_buf, c_size, iter * 3 + 2);
+            InitMatrix(c_impl_buf, c_size, iter * 3 + seed_offset + 2);
             memcpy(c_ref_buf, c_impl_buf, c_size * sizeof(float));
             for (BLASINT i = 0; i < c_size; i++)
                 c_half[i] = static_cast<float16_t>(c_impl_buf[i]);
@@ -203,8 +206,8 @@ void thread_worker(ThreadArg *targ) {
              */
 
             /* 用 InitMatrix 生成 [0,1] float 数据 */
-            InitMatrix(a_buf, a_size, iter * 3);
-            InitMatrix(b_buf, b_size, iter * 3 + 1);
+            InitMatrix(a_buf, a_size, iter * 3 + seed_offset);
+            InitMatrix(b_buf, b_size, iter * 3 + seed_offset + 1);
 
             /* float → BF16（截断低 16 位） */
             for (BLASINT i = 0; i < a_size; i++) {
@@ -228,7 +231,7 @@ void thread_worker(ThreadArg *targ) {
                 std::memcpy(&b_buf[i], &bits, sizeof(float));
             }
 
-            InitMatrix(c_impl_buf, c_size, iter * 3 + 2);
+            InitMatrix(c_impl_buf, c_size, iter * 3 + seed_offset + 2);
             memcpy(c_ref_buf, c_impl_buf, c_size * sizeof(float));
             for (BLASINT i = 0; i < c_size; i++) {
                 uint32_t bits;
@@ -266,11 +269,11 @@ void thread_worker(ThreadArg *targ) {
              */
 
             /* 1. Init BF16 A,B */
-            InitMatrix(a_bf16, a_size, iter * 3);
-            InitMatrix(b_bf16, b_size, iter * 3 + 1);
+            InitMatrix(a_bf16, a_size, iter * 3 + seed_offset);
+            InitMatrix(b_bf16, b_size, iter * 3 + seed_offset + 1);
 
             /* 2. Init float C, copy to C_ref */
-            InitMatrix(c_impl_buf, c_size, iter * 3 + 2);
+            InitMatrix(c_impl_buf, c_size, iter * 3 + seed_offset + 2);
             memcpy(c_ref_buf, c_impl_buf, c_size * sizeof(float));
 
             /* 3. BF16 → float（static_cast 扩展，给 ref 使用） */
