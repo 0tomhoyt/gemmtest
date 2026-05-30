@@ -1,0 +1,7 @@
+precision,M,N,K,transA,transB,order,alpha,beta
+sgemm,128,128,128,N,N,RowMajor,1.0,0.0
+sgemm,64,64,64,T,N,ColMajor,1.0,1.0
+shgemm,100,100,100,N,N,RowMajor,1.0,0.0
+sbgemm,50,50,50,N,T,RowMajor,1.5,0.5
+hgemm,32,32,32,N,N,ColMajor,1.0,0.0
+bgemm,20,20,20,T,T,RowMajor,1.0,1.0
