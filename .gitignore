@@ -8,3 +8,4 @@ out/
 # Claude Code
 .claude/
 skills/
+st/compile_commands.json

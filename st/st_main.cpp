@@ -36,6 +36,8 @@ std::atomic<int> completed_large{0};
 
 std::atomic<int> stage_fail_count[MAX_STAGES]; // 每个 stage 的失败次数，用于汇总报告
 
+bool use_hbm = true;  // 默认使用 HBM，可通过 --no-hbm 关闭
+
 /* ============================================================
  * 辅助函数：精度类型解析
  * ============================================================ */
@@ -496,6 +498,7 @@ static void cmd_help(int, char *argv[]) {
     std::cout << "  --iteration <N>     Iterations per precision (default: 100)\n";
     std::cout << "  --seed <N>          Seed for CSV matrix generation (default: 42)\n";
     std::cout << "  --workers <N>       Max worker threads (default: 32)\n";
+    std::cout << "  --no-hbm            Disable HBM memory allocation (use regular memory)\n";
     exit(0);
 }
 
@@ -516,6 +519,11 @@ static const std::unordered_map<std::string, void(*)(int, char*[])> g_functionTa
 };
 
 int main(int argc, char *argv[]) {
+    /* Parse global flags (--no-hbm) */
+    for (int i = 1; i < argc; i++) {
+        if (strcmp(argv[i], "--no-hbm") == 0) use_hbm = false;
+    }
+
     const char *mode = (argc > 1) ? argv[1] : "full";
 
     auto it = g_functionTable.find(mode);

@@ -22,8 +22,21 @@
 #include <vector>
 #include <atomic>
 
-#ifdef USE_HBM
-#include "test_util.h"
+#ifdef __linux__
+#include "ref_test_util.h"
+#else
+/* macOS fallback: AllocateMemory/FreeMemory wrappers using posix_memalign */
+#include <cstdlib>
+template<typename T>
+inline T* AllocateMemory(size_t count, size_t align = 64, bool /*useHBM*/ = false) {
+    void *ptr = nullptr;
+    if (posix_memalign(&ptr, align, count * sizeof(T)) != 0) return nullptr;
+    return static_cast<T*>(ptr);
+}
+template<typename T>
+inline void FreeMemory(size_t /*count*/, T *ptr, bool /*useHBM*/ = false) {
+    std::free(ptr);
+}
 #endif
 
 /* ============================================================
@@ -47,11 +60,7 @@ constexpr int MAX_LD = DIM_RANGE_LARGE + 7;
 constexpr int MAX_FAIL_LOGS = 20;
 constexpr int BUFFER_ALIGNMENT = 64;
 
-#ifdef USE_HBM
 #define MAX_WORKERS 32
-#else
-#define MAX_WORKERS 8
-#endif
 
 #define MAX_BLAS_THREADS 50
 
@@ -76,6 +85,9 @@ enum class PrecisionType {
     HGEMM,
     BGEMM
 };
+
+/* Runtime HBM toggle (set by --no-hbm flag, defaults to true on Linux with HBM) */
+extern bool use_hbm;
 
 struct ThreadBuffers {
     float *a_buf;
@@ -108,59 +120,59 @@ struct ThreadBuffers {
     bool allocate_for_precision(BLASINT max_dim, BLASINT max_ld, BufferPrecision precision) {
         max_size = static_cast<size_t>(max_ld) * static_cast<size_t>(max_dim);
 
-#ifdef USE_HBM
-        a_buf = AllocateMemory<float>(max_size, BUFFER_ALIGNMENT, true);
-        b_buf = AllocateMemory<float>(max_size, BUFFER_ALIGNMENT, true);
-        c_impl_buf = AllocateMemory<float>(max_size, BUFFER_ALIGNMENT, true);
-        c_ref_buf = AllocateMemory<float>(max_size, BUFFER_ALIGNMENT, true);
+        if (use_hbm) {
+            a_buf = AllocateMemory<float>(max_size, BUFFER_ALIGNMENT, true);
+            b_buf = AllocateMemory<float>(max_size, BUFFER_ALIGNMENT, true);
+            c_impl_buf = AllocateMemory<float>(max_size, BUFFER_ALIGNMENT, true);
+            c_ref_buf = AllocateMemory<float>(max_size, BUFFER_ALIGNMENT, true);
 
-        if (precision == BufferPrecision::SHGEMM || precision == BufferPrecision::HGEMM) {
-            a_half = AllocateMemory<float16_t>(max_size, BUFFER_ALIGNMENT, true);
-            b_half = AllocateMemory<float16_t>(max_size, BUFFER_ALIGNMENT, true);
-            has_half_ab = true;
-        }
-        if (precision == BufferPrecision::HGEMM) {
-            c_half = AllocateMemory<float16_t>(max_size, BUFFER_ALIGNMENT, true);
-            has_half_c = true;
-        }
-        if (precision == BufferPrecision::SBGEMM || precision == BufferPrecision::BGEMM) {
-            a_bf16 = AllocateMemory<bfloat16_t>(max_size, BUFFER_ALIGNMENT, true);
-            b_bf16 = AllocateMemory<bfloat16_t>(max_size, BUFFER_ALIGNMENT, true);
-            has_bf16_ab = true;
-        }
-        if (precision == BufferPrecision::BGEMM) {
-            c_bf16 = AllocateMemory<bfloat16_t>(max_size, BUFFER_ALIGNMENT, true);
-            has_bf16_c = true;
-        }
-#else
-        size_t float_bytes = max_size * sizeof(float);
-        size_t half_bytes = max_size * sizeof(float16_t);
-        size_t bf16_bytes = max_size * sizeof(bfloat16_t);
+            if (precision == BufferPrecision::SHGEMM || precision == BufferPrecision::HGEMM) {
+                a_half = AllocateMemory<float16_t>(max_size, BUFFER_ALIGNMENT, true);
+                b_half = AllocateMemory<float16_t>(max_size, BUFFER_ALIGNMENT, true);
+                has_half_ab = true;
+            }
+            if (precision == BufferPrecision::HGEMM) {
+                c_half = AllocateMemory<float16_t>(max_size, BUFFER_ALIGNMENT, true);
+                has_half_c = true;
+            }
+            if (precision == BufferPrecision::SBGEMM || precision == BufferPrecision::BGEMM) {
+                a_bf16 = AllocateMemory<bfloat16_t>(max_size, BUFFER_ALIGNMENT, true);
+                b_bf16 = AllocateMemory<bfloat16_t>(max_size, BUFFER_ALIGNMENT, true);
+                has_bf16_ab = true;
+            }
+            if (precision == BufferPrecision::BGEMM) {
+                c_bf16 = AllocateMemory<bfloat16_t>(max_size, BUFFER_ALIGNMENT, true);
+                has_bf16_c = true;
+            }
+        } else {
+            size_t float_bytes = max_size * sizeof(float);
+            size_t half_bytes = max_size * sizeof(float16_t);
+            size_t bf16_bytes = max_size * sizeof(bfloat16_t);
 
-        if (posix_memalign(reinterpret_cast<void**>(&a_buf), BUFFER_ALIGNMENT, float_bytes) != 0) a_buf = nullptr;
-        if (posix_memalign(reinterpret_cast<void**>(&b_buf), BUFFER_ALIGNMENT, float_bytes) != 0) b_buf = nullptr;
-        if (posix_memalign(reinterpret_cast<void**>(&c_impl_buf), BUFFER_ALIGNMENT, float_bytes) != 0) c_impl_buf = nullptr;
-        if (posix_memalign(reinterpret_cast<void**>(&c_ref_buf), BUFFER_ALIGNMENT, float_bytes) != 0) c_ref_buf = nullptr;
+            if (posix_memalign(reinterpret_cast<void**>(&a_buf), BUFFER_ALIGNMENT, float_bytes) != 0) a_buf = nullptr;
+            if (posix_memalign(reinterpret_cast<void**>(&b_buf), BUFFER_ALIGNMENT, float_bytes) != 0) b_buf = nullptr;
+            if (posix_memalign(reinterpret_cast<void**>(&c_impl_buf), BUFFER_ALIGNMENT, float_bytes) != 0) c_impl_buf = nullptr;
+            if (posix_memalign(reinterpret_cast<void**>(&c_ref_buf), BUFFER_ALIGNMENT, float_bytes) != 0) c_ref_buf = nullptr;
 
-        if (precision == BufferPrecision::SHGEMM || precision == BufferPrecision::HGEMM) {
-            if (posix_memalign(reinterpret_cast<void**>(&a_half), BUFFER_ALIGNMENT, half_bytes) != 0) a_half = nullptr;
-            if (posix_memalign(reinterpret_cast<void**>(&b_half), BUFFER_ALIGNMENT, half_bytes) != 0) b_half = nullptr;
-            has_half_ab = true;
+            if (precision == BufferPrecision::SHGEMM || precision == BufferPrecision::HGEMM) {
+                if (posix_memalign(reinterpret_cast<void**>(&a_half), BUFFER_ALIGNMENT, half_bytes) != 0) a_half = nullptr;
+                if (posix_memalign(reinterpret_cast<void**>(&b_half), BUFFER_ALIGNMENT, half_bytes) != 0) b_half = nullptr;
+                has_half_ab = true;
+            }
+            if (precision == BufferPrecision::HGEMM) {
+                if (posix_memalign(reinterpret_cast<void**>(&c_half), BUFFER_ALIGNMENT, half_bytes) != 0) c_half = nullptr;
+                has_half_c = true;
+            }
+            if (precision == BufferPrecision::SBGEMM || precision == BufferPrecision::BGEMM) {
+                if (posix_memalign(reinterpret_cast<void**>(&a_bf16), BUFFER_ALIGNMENT, bf16_bytes) != 0) a_bf16 = nullptr;
+                if (posix_memalign(reinterpret_cast<void**>(&b_bf16), BUFFER_ALIGNMENT, bf16_bytes) != 0) b_bf16 = nullptr;
+                has_bf16_ab = true;
+            }
+            if (precision == BufferPrecision::BGEMM) {
+                if (posix_memalign(reinterpret_cast<void**>(&c_bf16), BUFFER_ALIGNMENT, bf16_bytes) != 0) c_bf16 = nullptr;
+                has_bf16_c = true;
+            }
         }
-        if (precision == BufferPrecision::HGEMM) {
-            if (posix_memalign(reinterpret_cast<void**>(&c_half), BUFFER_ALIGNMENT, half_bytes) != 0) c_half = nullptr;
-            has_half_c = true;
-        }
-        if (precision == BufferPrecision::SBGEMM || precision == BufferPrecision::BGEMM) {
-            if (posix_memalign(reinterpret_cast<void**>(&a_bf16), BUFFER_ALIGNMENT, bf16_bytes) != 0) a_bf16 = nullptr;
-            if (posix_memalign(reinterpret_cast<void**>(&b_bf16), BUFFER_ALIGNMENT, bf16_bytes) != 0) b_bf16 = nullptr;
-            has_bf16_ab = true;
-        }
-        if (precision == BufferPrecision::BGEMM) {
-            if (posix_memalign(reinterpret_cast<void**>(&c_bf16), BUFFER_ALIGNMENT, bf16_bytes) != 0) c_bf16 = nullptr;
-            has_bf16_c = true;
-        }
-#endif
 
         if (!a_buf || !b_buf || !c_impl_buf || !c_ref_buf) return false;
         if (has_half_ab && (!a_half || !b_half)) return false;
@@ -190,33 +202,33 @@ struct ThreadBuffers {
     bool allocate_all(BLASINT max_dim, BLASINT max_ld) {
         max_size = static_cast<size_t>(max_ld) * static_cast<size_t>(max_dim);
 
-#ifdef USE_HBM
-        a_buf = AllocateMemory<float>(max_size, BUFFER_ALIGNMENT, true);
-        b_buf = AllocateMemory<float>(max_size, BUFFER_ALIGNMENT, true);
-        c_impl_buf = AllocateMemory<float>(max_size, BUFFER_ALIGNMENT, true);
-        c_ref_buf = AllocateMemory<float>(max_size, BUFFER_ALIGNMENT, true);
-        a_half = AllocateMemory<float16_t>(max_size, BUFFER_ALIGNMENT, true);
-        b_half = AllocateMemory<float16_t>(max_size, BUFFER_ALIGNMENT, true);
-        c_half = AllocateMemory<float16_t>(max_size, BUFFER_ALIGNMENT, true);
-        a_bf16 = AllocateMemory<bfloat16_t>(max_size, BUFFER_ALIGNMENT, true);
-        b_bf16 = AllocateMemory<bfloat16_t>(max_size, BUFFER_ALIGNMENT, true);
-        c_bf16 = AllocateMemory<bfloat16_t>(max_size, BUFFER_ALIGNMENT, true);
-#else
-        size_t float_bytes = max_size * sizeof(float);
-        size_t half_bytes = max_size * sizeof(float16_t);
-        size_t bf16_bytes = max_size * sizeof(bfloat16_t);
+        if (use_hbm) {
+            a_buf = AllocateMemory<float>(max_size, BUFFER_ALIGNMENT, true);
+            b_buf = AllocateMemory<float>(max_size, BUFFER_ALIGNMENT, true);
+            c_impl_buf = AllocateMemory<float>(max_size, BUFFER_ALIGNMENT, true);
+            c_ref_buf = AllocateMemory<float>(max_size, BUFFER_ALIGNMENT, true);
+            a_half = AllocateMemory<float16_t>(max_size, BUFFER_ALIGNMENT, true);
+            b_half = AllocateMemory<float16_t>(max_size, BUFFER_ALIGNMENT, true);
+            c_half = AllocateMemory<float16_t>(max_size, BUFFER_ALIGNMENT, true);
+            a_bf16 = AllocateMemory<bfloat16_t>(max_size, BUFFER_ALIGNMENT, true);
+            b_bf16 = AllocateMemory<bfloat16_t>(max_size, BUFFER_ALIGNMENT, true);
+            c_bf16 = AllocateMemory<bfloat16_t>(max_size, BUFFER_ALIGNMENT, true);
+        } else {
+            size_t float_bytes = max_size * sizeof(float);
+            size_t half_bytes = max_size * sizeof(float16_t);
+            size_t bf16_bytes = max_size * sizeof(bfloat16_t);
 
-        if (posix_memalign(reinterpret_cast<void**>(&a_buf), BUFFER_ALIGNMENT, float_bytes) != 0) a_buf = nullptr;
-        if (posix_memalign(reinterpret_cast<void**>(&b_buf), BUFFER_ALIGNMENT, float_bytes) != 0) b_buf = nullptr;
-        if (posix_memalign(reinterpret_cast<void**>(&c_impl_buf), BUFFER_ALIGNMENT, float_bytes) != 0) c_impl_buf = nullptr;
-        if (posix_memalign(reinterpret_cast<void**>(&c_ref_buf), BUFFER_ALIGNMENT, float_bytes) != 0) c_ref_buf = nullptr;
-        if (posix_memalign(reinterpret_cast<void**>(&a_half), BUFFER_ALIGNMENT, half_bytes) != 0) a_half = nullptr;
-        if (posix_memalign(reinterpret_cast<void**>(&b_half), BUFFER_ALIGNMENT, half_bytes) != 0) b_half = nullptr;
-        if (posix_memalign(reinterpret_cast<void**>(&c_half), BUFFER_ALIGNMENT, half_bytes) != 0) c_half = nullptr;
-        if (posix_memalign(reinterpret_cast<void**>(&a_bf16), BUFFER_ALIGNMENT, bf16_bytes) != 0) a_bf16 = nullptr;
-        if (posix_memalign(reinterpret_cast<void**>(&b_bf16), BUFFER_ALIGNMENT, bf16_bytes) != 0) b_bf16 = nullptr;
-        if (posix_memalign(reinterpret_cast<void**>(&c_bf16), BUFFER_ALIGNMENT, bf16_bytes) != 0) c_bf16 = nullptr;
-#endif
+            if (posix_memalign(reinterpret_cast<void**>(&a_buf), BUFFER_ALIGNMENT, float_bytes) != 0) a_buf = nullptr;
+            if (posix_memalign(reinterpret_cast<void**>(&b_buf), BUFFER_ALIGNMENT, float_bytes) != 0) b_buf = nullptr;
+            if (posix_memalign(reinterpret_cast<void**>(&c_impl_buf), BUFFER_ALIGNMENT, float_bytes) != 0) c_impl_buf = nullptr;
+            if (posix_memalign(reinterpret_cast<void**>(&c_ref_buf), BUFFER_ALIGNMENT, float_bytes) != 0) c_ref_buf = nullptr;
+            if (posix_memalign(reinterpret_cast<void**>(&a_half), BUFFER_ALIGNMENT, half_bytes) != 0) a_half = nullptr;
+            if (posix_memalign(reinterpret_cast<void**>(&b_half), BUFFER_ALIGNMENT, half_bytes) != 0) b_half = nullptr;
+            if (posix_memalign(reinterpret_cast<void**>(&c_half), BUFFER_ALIGNMENT, half_bytes) != 0) c_half = nullptr;
+            if (posix_memalign(reinterpret_cast<void**>(&a_bf16), BUFFER_ALIGNMENT, bf16_bytes) != 0) a_bf16 = nullptr;
+            if (posix_memalign(reinterpret_cast<void**>(&b_bf16), BUFFER_ALIGNMENT, bf16_bytes) != 0) b_bf16 = nullptr;
+            if (posix_memalign(reinterpret_cast<void**>(&c_bf16), BUFFER_ALIGNMENT, bf16_bytes) != 0) c_bf16 = nullptr;
+        }
 
         has_half_ab = true;
         has_half_c = true;
@@ -236,59 +248,74 @@ struct ThreadBuffers {
         size_t b_sz = static_cast<size_t>(b_size);
         size_t c_sz = static_cast<size_t>(c_size);
 
-        // SGEMM: 4 个 float buffer
-        // SHGEMM/SBGEMM/HGEMM/BGEMM: 2 个 float buffer (c_impl, c_ref)
-#ifdef USE_HBM
-        a_buf = AllocateMemory<float>(float_alloc_size, BUFFER_ALIGNMENT, true);
-        b_buf = AllocateMemory<float>(b_sz, BUFFER_ALIGNMENT, true);
-        c_impl_buf = AllocateMemory<float>(c_sz, BUFFER_ALIGNMENT, true);
-        c_ref_buf = AllocateMemory<float>(c_sz, BUFFER_ALIGNMENT, true);
-#else
-        if (posix_memalign(reinterpret_cast<void**>(&a_buf), BUFFER_ALIGNMENT, float_alloc_size * sizeof(float)) != 0) a_buf = nullptr;
-        if (posix_memalign(reinterpret_cast<void**>(&b_buf), BUFFER_ALIGNMENT, b_sz * sizeof(float)) != 0) b_buf = nullptr;
-        if (posix_memalign(reinterpret_cast<void**>(&c_impl_buf), BUFFER_ALIGNMENT, c_sz * sizeof(float)) != 0) c_impl_buf = nullptr;
-        if (posix_memalign(reinterpret_cast<void**>(&c_ref_buf), BUFFER_ALIGNMENT, c_sz * sizeof(float)) != 0) c_ref_buf = nullptr;
-#endif
+        if (use_hbm) {
+            // SGEMM: 4 个 float buffer
+            // SHGEMM/SBGEMM/HGEMM/BGEMM: 2 个 float buffer (c_impl, c_ref)
+            a_buf = AllocateMemory<float>(float_alloc_size, BUFFER_ALIGNMENT, true);
+            b_buf = AllocateMemory<float>(b_sz, BUFFER_ALIGNMENT, true);
+            c_impl_buf = AllocateMemory<float>(c_sz, BUFFER_ALIGNMENT, true);
+            c_ref_buf = AllocateMemory<float>(c_sz, BUFFER_ALIGNMENT, true);
 
-        if (prec == PrecisionType::SHGEMM || prec == PrecisionType::HGEMM) {
-            half_alloc_size = float_alloc_size > b_sz ? float_alloc_size : b_sz;
-#ifdef USE_HBM
-            a_half = AllocateMemory<float16_t>(float_alloc_size, BUFFER_ALIGNMENT, true);
-            b_half = AllocateMemory<float16_t>(b_sz, BUFFER_ALIGNMENT, true);
-#else
-            if (posix_memalign(reinterpret_cast<void**>(&a_half), BUFFER_ALIGNMENT, float_alloc_size * sizeof(float16_t)) != 0) a_half = nullptr;
-            if (posix_memalign(reinterpret_cast<void**>(&b_half), BUFFER_ALIGNMENT, b_sz * sizeof(float16_t)) != 0) b_half = nullptr;
-#endif
-            has_half_ab = true;
-        }
-        if (prec == PrecisionType::HGEMM) {
-            half_alloc_size = c_sz > half_alloc_size ? c_sz : half_alloc_size;
-#ifdef USE_HBM
-            c_half = AllocateMemory<float16_t>(c_sz, BUFFER_ALIGNMENT, true);
-#else
-            if (posix_memalign(reinterpret_cast<void**>(&c_half), BUFFER_ALIGNMENT, c_sz * sizeof(float16_t)) != 0) c_half = nullptr;
-#endif
-            has_half_c = true;
-        }
-        if (prec == PrecisionType::SBGEMM || prec == PrecisionType::BGEMM) {
-            bf16_alloc_size = float_alloc_size > b_sz ? float_alloc_size : b_sz;
-#ifdef USE_HBM
-            a_bf16 = AllocateMemory<bfloat16_t>(float_alloc_size, BUFFER_ALIGNMENT, true);
-            b_bf16 = AllocateMemory<bfloat16_t>(b_sz, BUFFER_ALIGNMENT, true);
-#else
-            if (posix_memalign(reinterpret_cast<void**>(&a_bf16), BUFFER_ALIGNMENT, float_alloc_size * sizeof(bfloat16_t)) != 0) a_bf16 = nullptr;
-            if (posix_memalign(reinterpret_cast<void**>(&b_bf16), BUFFER_ALIGNMENT, b_sz * sizeof(bfloat16_t)) != 0) b_bf16 = nullptr;
-#endif
-            has_bf16_ab = true;
-        }
-        if (prec == PrecisionType::BGEMM) {
-            bf16_alloc_size = c_sz > bf16_alloc_size ? c_sz : bf16_alloc_size;
-#ifdef USE_HBM
-            c_bf16 = AllocateMemory<bfloat16_t>(c_sz, BUFFER_ALIGNMENT, true);
-#else
-            if (posix_memalign(reinterpret_cast<void**>(&c_bf16), BUFFER_ALIGNMENT, c_sz * sizeof(bfloat16_t)) != 0) c_bf16 = nullptr;
-#endif
-            has_bf16_c = true;
+            if (prec == PrecisionType::SHGEMM || prec == PrecisionType::HGEMM) {
+                half_alloc_size = float_alloc_size > b_sz ? float_alloc_size : b_sz;
+                a_half = AllocateMemory<float16_t>(float_alloc_size, BUFFER_ALIGNMENT, true);
+                b_half = AllocateMemory<float16_t>(b_sz, BUFFER_ALIGNMENT, true);
+                has_half_ab = true;
+            }
+            if (prec == PrecisionType::HGEMM) {
+                half_alloc_size = c_sz > half_alloc_size ? c_sz : half_alloc_size;
+                c_half = AllocateMemory<float16_t>(c_sz, BUFFER_ALIGNMENT, true);
+                has_half_c = true;
+            }
+            if (prec == PrecisionType::SBGEMM || prec == PrecisionType::BGEMM) {
+                bf16_alloc_size = float_alloc_size > b_sz ? float_alloc_size : b_sz;
+                a_bf16 = AllocateMemory<bfloat16_t>(float_alloc_size, BUFFER_ALIGNMENT, true);
+                b_bf16 = AllocateMemory<bfloat16_t>(b_sz, BUFFER_ALIGNMENT, true);
+                has_bf16_ab = true;
+            }
+            if (prec == PrecisionType::BGEMM) {
+                bf16_alloc_size = c_sz > bf16_alloc_size ? c_sz : bf16_alloc_size;
+                c_bf16 = AllocateMemory<bfloat16_t>(c_sz, BUFFER_ALIGNMENT, true);
+                has_bf16_c = true;
+            }
+        } else {
+            size_t float_bytes_a = float_alloc_size * sizeof(float);
+            size_t float_bytes_b = b_sz * sizeof(float);
+            size_t float_bytes_c = c_sz * sizeof(float);
+
+            if (posix_memalign(reinterpret_cast<void**>(&a_buf), BUFFER_ALIGNMENT, float_bytes_a) != 0) a_buf = nullptr;
+            if (posix_memalign(reinterpret_cast<void**>(&b_buf), BUFFER_ALIGNMENT, float_bytes_b) != 0) b_buf = nullptr;
+            if (posix_memalign(reinterpret_cast<void**>(&c_impl_buf), BUFFER_ALIGNMENT, float_bytes_c) != 0) c_impl_buf = nullptr;
+            if (posix_memalign(reinterpret_cast<void**>(&c_ref_buf), BUFFER_ALIGNMENT, float_bytes_c) != 0) c_ref_buf = nullptr;
+
+            if (prec == PrecisionType::SHGEMM || prec == PrecisionType::HGEMM) {
+                half_alloc_size = float_alloc_size > b_sz ? float_alloc_size : b_sz;
+                size_t half_bytes_a = float_alloc_size * sizeof(float16_t);
+                size_t half_bytes_b = b_sz * sizeof(float16_t);
+                if (posix_memalign(reinterpret_cast<void**>(&a_half), BUFFER_ALIGNMENT, half_bytes_a) != 0) a_half = nullptr;
+                if (posix_memalign(reinterpret_cast<void**>(&b_half), BUFFER_ALIGNMENT, half_bytes_b) != 0) b_half = nullptr;
+                has_half_ab = true;
+            }
+            if (prec == PrecisionType::HGEMM) {
+                half_alloc_size = c_sz > half_alloc_size ? c_sz : half_alloc_size;
+                size_t half_bytes_c = c_sz * sizeof(float16_t);
+                if (posix_memalign(reinterpret_cast<void**>(&c_half), BUFFER_ALIGNMENT, half_bytes_c) != 0) c_half = nullptr;
+                has_half_c = true;
+            }
+            if (prec == PrecisionType::SBGEMM || prec == PrecisionType::BGEMM) {
+                bf16_alloc_size = float_alloc_size > b_sz ? float_alloc_size : b_sz;
+                size_t bf16_bytes_a = float_alloc_size * sizeof(bfloat16_t);
+                size_t bf16_bytes_b = b_sz * sizeof(bfloat16_t);
+                if (posix_memalign(reinterpret_cast<void**>(&a_bf16), BUFFER_ALIGNMENT, bf16_bytes_a) != 0) a_bf16 = nullptr;
+                if (posix_memalign(reinterpret_cast<void**>(&b_bf16), BUFFER_ALIGNMENT, bf16_bytes_b) != 0) b_bf16 = nullptr;
+                has_bf16_ab = true;
+            }
+            if (prec == PrecisionType::BGEMM) {
+                bf16_alloc_size = c_sz > bf16_alloc_size ? c_sz : bf16_alloc_size;
+                size_t bf16_bytes_c = c_sz * sizeof(bfloat16_t);
+                if (posix_memalign(reinterpret_cast<void**>(&c_bf16), BUFFER_ALIGNMENT, bf16_bytes_c) != 0) c_bf16 = nullptr;
+                has_bf16_c = true;
+            }
         }
 
         if (!a_buf || !b_buf || !c_impl_buf || !c_ref_buf) return false;
@@ -305,37 +332,25 @@ struct ThreadBuffers {
         bool is_sized = (float_alloc_size > 0);
         if (max_size == 0 && !is_sized) return;
 
-#ifdef USE_HBM
         if (is_sized) {
-            size_t b_sz = float_alloc_size; // b_buf 与 a_buf 同大小（由调用方保证）
-            FreeMemory<float>(float_alloc_size, a_buf, true);
-            FreeMemory<float>(float_alloc_size, b_buf, true);
-            FreeMemory<float>(float_alloc_size, c_impl_buf, true);
-            FreeMemory<float>(float_alloc_size, c_ref_buf, true);
-            if (has_half_ab) { FreeMemory<float16_t>(half_alloc_size, a_half, true); FreeMemory<float16_t>(half_alloc_size, b_half, true); }
-            if (has_half_c) FreeMemory<float16_t>(half_alloc_size, c_half, true);
-            if (has_bf16_ab) { FreeMemory<bfloat16_t>(bf16_alloc_size, a_bf16, true); FreeMemory<bfloat16_t>(bf16_alloc_size, b_bf16, true); }
-            if (has_bf16_c) FreeMemory<bfloat16_t>(bf16_alloc_size, c_bf16, true);
+            FreeMemory<float>(float_alloc_size, a_buf, use_hbm);
+            FreeMemory<float>(float_alloc_size, b_buf, use_hbm);
+            FreeMemory<float>(float_alloc_size, c_impl_buf, use_hbm);
+            FreeMemory<float>(float_alloc_size, c_ref_buf, use_hbm);
+            if (has_half_ab) { FreeMemory<float16_t>(half_alloc_size, a_half, use_hbm); FreeMemory<float16_t>(half_alloc_size, b_half, use_hbm); }
+            if (has_half_c) FreeMemory<float16_t>(half_alloc_size, c_half, use_hbm);
+            if (has_bf16_ab) { FreeMemory<bfloat16_t>(bf16_alloc_size, a_bf16, use_hbm); FreeMemory<bfloat16_t>(bf16_alloc_size, b_bf16, use_hbm); }
+            if (has_bf16_c) FreeMemory<bfloat16_t>(bf16_alloc_size, c_bf16, use_hbm);
         } else {
-            FreeMemory<float>(max_size, a_buf, true);
-            FreeMemory<float>(max_size, b_buf, true);
-            FreeMemory<float>(max_size, c_impl_buf, true);
-            FreeMemory<float>(max_size, c_ref_buf, true);
-            if (has_half_ab) { FreeMemory<float16_t>(max_size, a_half, true); FreeMemory<float16_t>(max_size, b_half, true); }
-            if (has_half_c) FreeMemory<float16_t>(max_size, c_half, true);
-            if (has_bf16_ab) { FreeMemory<bfloat16_t>(max_size, a_bf16, true); FreeMemory<bfloat16_t>(max_size, b_bf16, true); }
-            if (has_bf16_c) FreeMemory<bfloat16_t>(max_size, c_bf16, true);
+            FreeMemory<float>(max_size, a_buf, use_hbm);
+            FreeMemory<float>(max_size, b_buf, use_hbm);
+            FreeMemory<float>(max_size, c_impl_buf, use_hbm);
+            FreeMemory<float>(max_size, c_ref_buf, use_hbm);
+            if (has_half_ab) { FreeMemory<float16_t>(max_size, a_half, use_hbm); FreeMemory<float16_t>(max_size, b_half, use_hbm); }
+            if (has_half_c) FreeMemory<float16_t>(max_size, c_half, use_hbm);
+            if (has_bf16_ab) { FreeMemory<bfloat16_t>(max_size, a_bf16, use_hbm); FreeMemory<bfloat16_t>(max_size, b_bf16, use_hbm); }
+            if (has_bf16_c) FreeMemory<bfloat16_t>(max_size, c_bf16, use_hbm);
         }
-#else
-        std::free(a_buf);
-        std::free(b_buf);
-        std::free(c_impl_buf);
-        std::free(c_ref_buf);
-        if (has_half_ab) { std::free(a_half); std::free(b_half); }
-        if (has_half_c) std::free(c_half);
-        if (has_bf16_ab) { std::free(a_bf16); std::free(b_bf16); }
-        if (has_bf16_c) std::free(c_bf16);
-#endif
     }
 
     ThreadBuffers(const ThreadBuffers&) = delete;

@@ -13,6 +13,8 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/out)
 
 include_directories(${CMAKE_SOURCE_DIR}/.. ${CMAKE_SOURCE_DIR}/../include ${CMAKE_SOURCE_DIR}/stubs)
 
+option(USE_BUGGY_IMPL "Use buggy implementation to test error detection" OFF)
+
 set(CPP_SOURCES
     st_main.cpp
     st_worker.cpp
@@ -25,8 +27,15 @@ set(CPP_SOURCES
 
 set(C_SOURCES
     ../openblas.c
-    ../unigemm.c
 )
+
+if(USE_BUGGY_IMPL)
+    message(STATUS "Using BUGGY implementation for testing")
+    list(APPEND C_SOURCES ../unigemm_buggy.c)
+else()
+    message(STATUS "Using correct implementation")
+    list(APPEND C_SOURCES ../unigemm.c)
+endif()
 
 set(SOURCES ${CPP_SOURCES} ${C_SOURCES})
 
