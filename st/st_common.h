@@ -290,16 +290,13 @@ struct ThreadBuffers {
 
             if (prec == PrecisionType::SHGEMM || prec == PrecisionType::HGEMM) {
                 half_alloc_size = float_alloc_size > b_sz ? float_alloc_size : b_sz;
-                size_t half_bytes_a = float_alloc_size * sizeof(float16_t);
-                size_t half_bytes_b = b_sz * sizeof(float16_t);
-                if (posix_memalign(reinterpret_cast<void**>(&a_half), BUFFER_ALIGNMENT, half_bytes_a) != 0) a_half = nullptr;
-                if (posix_memalign(reinterpret_cast<void**>(&b_half), BUFFER_ALIGNMENT, half_bytes_b) != 0) b_half = nullptr;
+                if (posix_memalign(reinterpret_cast<void**>(&a_half), BUFFER_ALIGNMENT, float_bytes_a) != 0) a_half = nullptr;
+                if (posix_memalign(reinterpret_cast<void**>(&b_half), BUFFER_ALIGNMENT, float_bytes_b) != 0) b_half = nullptr;
                 has_half_ab = true;
             }
             if (prec == PrecisionType::HGEMM) {
                 half_alloc_size = c_sz > half_alloc_size ? c_sz : half_alloc_size;
-                size_t half_bytes_c = c_sz * sizeof(float16_t);
-                if (posix_memalign(reinterpret_cast<void**>(&c_half), BUFFER_ALIGNMENT, half_bytes_c) != 0) c_half = nullptr;
+                if (posix_memalign(reinterpret_cast<void**>(&c_half), BUFFER_ALIGNMENT, float_bytes_c) != 0) c_half = nullptr;
                 has_half_c = true;
             }
             if (prec == PrecisionType::SBGEMM || prec == PrecisionType::BGEMM) {
@@ -546,6 +543,62 @@ bool MatrixCompare(const T1 *ref, const T2 *test, int rows, int cols,
     }
 
     return mismatch_count == 0;
+}
+
+/* ============================================================
+ * Crash handler: print shape on SIGSEGV/SIGBUS
+ * ============================================================ */
+
+#include <csignal>
+#include <unistd.h>
+
+struct CrashContext {
+    int thread_id;
+    int stage_num;
+    PrecisionType precision;
+    BLASINT M, N, K;
+    CBLAS_TRANSPOSE transA, transB;
+    CBLAS_ORDER order;
+    float alpha, beta;
+    BLASINT lda, ldb, ldc;
+};
+
+static thread_local CrashContext* g_crash_ctx = nullptr;
+
+static void crash_signal_handler(int sig) {
+    CrashContext* ctx = g_crash_ctx;
+    if (ctx) {
+        char buf[512];
+        int len = snprintf(buf, sizeof(buf),
+            "\n\n=== CRASH: signal %d ===\n"
+            "  Thread: %d | Stage: %d\n"
+            "  Precision: %s\n"
+            "  M=%d N=%d K=%d\n"
+            "  transA=%s transB=%s order=%s\n"
+            "  alpha=%g beta=%g\n"
+            "  lda=%d ldb=%d ldc=%d\n"
+            "=== Re-raising signal for core dump ===\n\n",
+            sig,
+            ctx->thread_id, ctx->stage_num,
+            precision_name(ctx->precision),
+            (int)ctx->M, (int)ctx->N, (int)ctx->K,
+            trans_name(ctx->transA), trans_name(ctx->transB), order_name(ctx->order),
+            ctx->alpha, ctx->beta,
+            (int)ctx->lda, (int)ctx->ldb, (int)ctx->ldc);
+        write(STDERR_FILENO, buf, len);
+    }
+    // Re-raise with default handler to get core dump
+    signal(sig, SIG_DFL);
+    raise(sig);
+}
+
+inline void install_crash_handler() {
+    struct sigaction sa;
+    sa.sa_handler = crash_signal_handler;
+    sigemptyset(&sa.sa_mask);
+    sa.sa_flags = SA_RESTART;
+    sigaction(SIGSEGV, &sa, nullptr);
+    sigaction(SIGBUS, &sa, nullptr);
 }
 
 #endif /* ST_COMMON_H */

@@ -519,6 +519,8 @@ static const std::unordered_map<std::string, void(*)(int, char*[])> g_functionTa
 };
 
 int main(int argc, char *argv[]) {
+    install_crash_handler();
+
     /* Parse global flags (--no-hbm) */
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "--no-hbm") == 0) use_hbm = false;

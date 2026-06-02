@@ -124,6 +124,14 @@ void thread_worker(ThreadArg *targ) {
         if (ldb < 1) ldb = 1;
         if (ldc < 1) ldc = 1;
 
+        /* Set crash context so signal handler can print shape info */
+        CrashContext crash_ctx = {
+            targ->thread_id, targ->stage_num, params.precision,
+            m, n, k, transA, transB, order, alpha, beta,
+            lda, ldb, ldc
+        };
+        g_crash_ctx = &crash_ctx;
+
         BlasSetNumThreadsLocal(num_threads);
 
         bool passed = false;
@@ -265,6 +273,8 @@ void thread_worker(ThreadArg *targ) {
                                        SBGEMM_TOLERANCE, true,
                                        order == CblasRowMajor);
         }
+
+        g_crash_ctx = nullptr;
 
         total_tests.fetch_add(1, std::memory_order_relaxed);
         completed_tests.fetch_add(1, std::memory_order_relaxed);
